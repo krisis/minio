@@ -281,6 +281,11 @@ func serverMain(c *cli.Context) {
 		disks:        disks,
 		ignoredDisks: ignoredDisks,
 	}
+
+	// Initialize and monitor shutdown signals.
+	err = initGracefulShutdown(os.Exit)
+	fatalIf(err, "Unable to initialize graceful shutdown operation")
+
 	// Configure server.
 	handler := configureServerHandler(srvConfig)
 
