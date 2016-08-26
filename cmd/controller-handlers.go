@@ -100,7 +100,16 @@ func (c *controllerAPIHandlers) HealObjectHandler(args *HealObjectArgs, reply *G
 	if !isRPCTokenValid(args.Token) {
 		return errInvalidToken
 	}
-	return objAPI.HealObject(args.Bucket, args.Object)
+	err := objAPI.HealObject(args.Bucket, args.Object)
+	if err != nil {
+		return err
+	}
+	// Notify waitForFormatting function that a disk was healed.
+	// N B Using a go-routine to avoid send on channel to block.
+	go func() {
+		globalHealControlCh <- struct{}{}
+	}()
+	return err
 }
 
 // ShutdownArgs - argument for Shutdown RPC.
