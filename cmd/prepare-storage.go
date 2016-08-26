@@ -21,10 +21,10 @@ import "time"
 // Channel where minioctl heal handler would notify if it were successful. This
 // would be used by waitForFormattingDisks routine to check if it's worth
 // retrying loadAllFormats.
-var globalHealControlCh chan struct{}
+var globalWakeupCh chan struct{}
 
 func init() {
-	globalHealControlCh = make(chan struct{}, 1)
+	globalWakeupCh = make(chan struct{}, 1)
 }
 
 /*
@@ -95,37 +95,6 @@ func prepForInit(disks []string, sErrs []error, diskCount int) InitActions {
 	disksUnformatted := errMap[errUnformattedDisk]
 	disksCorrupted := errMap[errCorruptedFormat]
 
-	// No Quorum.
-	if disksOffline > quorum {
-		return WaitForQuorum
-	}
-
-	// Already formatted, proceed to initialization of object layer.
-	if disksFormatted == diskCount {
-		return InitObjectLayer
-	} else if disksFormatted > quorum {
-		if disksFormatted+disksOffline == diskCount {
-			return InitObjectLayer
-		}
-		if disksFormatted+disksUnformatted == diskCount {
-			return InitObjectLayer
-		}
-		if disksFormatted+disksCorrupted == diskCount {
-			return InitObjectLayer
-		}
-	}
-
-	// There is quorum or more corrupted disks, there is not enough good
-	// disks to reconstruct format.json.
-	if disksCorrupted >= quorum {
-		return Abort
-	} else if disksCorrupted+disksUnformatted >= quorum {
-		return Abort
-	} else {
-		// Some of the formatted disks are possibly offline.
-		return WaitForHeal
-	}
-
 	// All disks are unformatted, proceed to formatting disks.
 	if disksUnformatted == diskCount {
 		// Only the first server formats an uninitialized setup, others wait for notification.
@@ -133,30 +102,50 @@ func prepForInit(disks []string, sErrs []error, diskCount int) InitActions {
 			return FormatDisks
 		}
 		return WaitForFormatting
-	} else {
-		// Wait for all disks to be formatted if setup is new, else
-		// wait until all disks are healed.
+	} else if (disksUnformatted >= quorum) && (disksUnformatted+disksOffline == diskCount) {
 		return WaitForAll
 	}
+
+	// Already formatted, proceed to initialization of object layer.
+	if disksFormatted == diskCount {
+		return InitObjectLayer
+	} else if disksFormatted > quorum && disksFormatted+disksOffline == diskCount {
+		return InitObjectLayer
+	} else if disksFormatted > quorum {
+		// TODO: Print minioctl heal command
+		return InitObjectLayer
+	}
+
+	// No Quorum.
+	if disksOffline > quorum {
+		return WaitForQuorum
+	}
+
+	// There is quorum or more corrupted disks, there is not enough good
+	// disks to reconstruct format.json.
+	if disksCorrupted >= quorum {
+		return Abort
+	}
+	// Some of the formatted disks are possibly offline.
 	return WaitForHeal
 }
 
-func waitForFormattingDisks(disks, ignoredDisks []string) (storageDisks []StorageAPI, err error) {
+func waitForFormattingDisks(disks, ignoredDisks []string) ([]StorageAPI, error) {
 	// FS Setup
 	if len(disks) == 1 {
-		storageDisks[0], err = newStorageAPI(disks[0])
+		storage, err := newStorageAPI(disks[0])
 		if err != nil && err != errDiskNotFound {
 			return nil, err
 		}
-		return storageDisks, nil
+		return []StorageAPI{storage}, nil
 	}
 
 	// XL Setup
-	if err = checkSufficientDisks(disks); err != nil {
+	if err := checkSufficientDisks(disks); err != nil {
 		return nil, err
 	}
 	// Bootstrap disks.
-	storageDisks = make([]StorageAPI, len(disks))
+	storageDisks := make([]StorageAPI, len(disks))
 	for index, disk := range disks {
 		// Check if disk is ignored.
 		if isDiskFound(disk, ignoredDisks) {
@@ -165,10 +154,11 @@ func waitForFormattingDisks(disks, ignoredDisks []string) (storageDisks []Storag
 		}
 		// Intentionally ignore disk not found errors. XL is designed
 		// to handle these errors internally.
-		storageDisks[index], err = newStorageAPI(disk)
+		storage, err := newStorageAPI(disk)
 		if err != nil && err != errDiskNotFound {
 			return nil, err
 		}
+		storageDisks[index] = storage
 	}
 
 	nextBackoff := time.Duration(0)
@@ -187,7 +177,7 @@ func waitForFormattingDisks(disks, ignoredDisks []string) (storageDisks []Storag
 				return storageDisks, nil
 
 			}
-		case <-globalHealControlCh:
+		case <-globalWakeupCh:
 			// Reset nextBackoff to reduce the subsequent wait and re-read
 			// format.json from all disks again.
 			nextBackoff = 0

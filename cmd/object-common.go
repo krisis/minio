@@ -59,6 +59,13 @@ func isLocalStorage(networkPath string) bool {
 		// e.g 10.0.0.1:/mnt/networkPath
 		netAddr, _, err := splitNetPath(networkPath)
 		if err != nil {
+			switch typ := err.(type) {
+			case (*net.AddrError):
+				// This is trivially local storage.
+				if typ.Err == "missing address in network path" {
+					return true
+				}
+			}
 			errorIf(err, "Splitting into ip and path failed")
 			return false
 		}

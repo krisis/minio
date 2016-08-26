@@ -135,11 +135,6 @@ func newXLObjects(disks, ignoredDisks []string) (ObjectLayer, error) {
 		return nil, err
 	}
 
-	// Initialize meta volume, if volume already exists ignores it.
-	if err := initMetaVolume(storageDisks); err != nil {
-		return nil, fmt.Errorf("Unable to initialize '.minio' meta volume, %s", err)
-	}
-
 	// Handles different cases properly.
 	switch reduceFormatErrs(sErrs, len(storageDisks)) {
 	case errCorruptedFormat:

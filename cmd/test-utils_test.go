@@ -771,6 +771,19 @@ func getXLObjectLayer() (ObjectLayer, []string, error) {
 		erasureDisks = append(erasureDisks, path)
 	}
 
+	storageDisks, err := waitForFormattingDisks(erasureDisks, nil)
+	for i := range storageDisks {
+		switch storage := storageDisks[i].(type) {
+		// Closing associated TCP connections since
+		// []StorageAPI is garage collected eventually.
+		case networkStorage:
+			storage.rpcClient.Close()
+		}
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+
 	objLayer, err := newXLObjects(erasureDisks, nil)
 	if err != nil {
 		return nil, nil, err

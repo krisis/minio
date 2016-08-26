@@ -107,7 +107,7 @@ func (c *controllerAPIHandlers) HealObjectHandler(args *HealObjectArgs, reply *G
 	// Notify waitForFormatting function that a disk was healed.
 	// N B Using a go-routine to avoid send on channel to block.
 	go func() {
-		globalHealControlCh <- struct{}{}
+		globalWakeupCh <- struct{}{}
 	}()
 	return err
 }
@@ -133,4 +133,13 @@ func (c *controllerAPIHandlers) ShutdownHandler(args *ShutdownArgs, reply *Gener
 		globalShutdownSignalCh <- shutdownHalt
 	}
 	return nil
+}
+
+func (c *controllerAPIHandlers) TryInitHandler(args *GenericArgs, reply *GenericReply) error {
+	go func() {
+		globalWakeupCh <- struct{}{}
+	}()
+	*reply = GenericReply{}
+	return nil
+
 }
