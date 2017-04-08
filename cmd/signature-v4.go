@@ -160,7 +160,7 @@ func doesPolicySignatureV4Match(formValues http.Header) APIErrorCode {
 	// Parse credential tag.
 	credHeader, err := parseCredentialHeader("Credential=" + formValues.Get("X-Amz-Credential"))
 	if err != ErrNone {
-		return ErrMissingFields
+		return err
 	}
 
 	// Verify if the access key id matches.
