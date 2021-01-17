@@ -9,6 +9,7 @@ import (
 	"net/url"
 
 	"github.com/Azure/azure-storage-blob-go/azblob"
+	"github.com/minio/minio/pkg/madmin"
 )
 
 type warmBackendAzure struct {
@@ -39,8 +40,8 @@ func (az *warmBackendAzure) Remove(bucket, object string) error {
 	return err
 }
 
-func newWarmBackendAzure(endpoint, accessKey, secretKey string) (*warmBackendAzure, error) {
-	credential, err := azblob.NewSharedKeyCredential(accessKey, secretKey)
+func newWarmBackendAzure(conf madmin.TransitionStorageClassAzure) (*warmBackendAzure, error) {
+	credential, err := azblob.NewSharedKeyCredential(conf.AccessKey, conf.SecretKey)
 	if err != nil {
 		if _, ok := err.(base64.CorruptInputError); ok {
 			return nil, errors.New("invalid Azure credentials")
@@ -48,7 +49,7 @@ func newWarmBackendAzure(endpoint, accessKey, secretKey string) (*warmBackendAzu
 		return &warmBackendAzure{}, err
 	}
 	p := azblob.NewPipeline(credential, azblob.PipelineOptions{})
-	u, _ := url.Parse(fmt.Sprintf("https://%s.blob.core.windows.net", accessKey))
+	u, _ := url.Parse(fmt.Sprintf("https://%s.blob.core.windows.net", conf.AccessKey))
 	serviceURL := azblob.NewServiceURL(*u, p)
 	return &warmBackendAzure{serviceURL}, nil
 }

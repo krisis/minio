@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"cloud.google.com/go/storage"
+	"github.com/minio/minio/pkg/madmin"
 )
 
 type warmBackendGCS struct {
@@ -42,6 +43,6 @@ func (gcs *warmBackendGCS) Remove(bucket, object string) error {
 	return gcs.client.Bucket(bucket).Object(object).Delete(context.Background())
 }
 
-func newWarmBackendGCS() (*warmBackendGCS, error) {
+func newWarmBackendGCS(conf madmin.TransitionStorageClassGCS) (*warmBackendGCS, error) {
 	return nil, nil
 }

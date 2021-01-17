@@ -504,6 +504,8 @@ func serverMain(ctx *cli.Context) {
 		}
 	}
 
+	loadGlobalTransitionStorageClassConfig()
+
 	if globalCacheConfig.Enabled {
 		// initialize the new disk cache objects.
 		var cacheAPI CacheObjectLayer

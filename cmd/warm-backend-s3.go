@@ -5,6 +5,7 @@ import (
 	"net/url"
 
 	minio "github.com/minio/minio-go"
+	"github.com/minio/minio/pkg/madmin"
 )
 
 type warmBackendS3 struct {
@@ -24,12 +25,12 @@ func (s3 *warmBackendS3) Remove(bucket, object string) error {
 	return s3.client.RemoveObject(bucket, object)
 }
 
-func newWarmBackendS3(endpoint, accessKey, secretKey string) (*warmBackendS3, error) {
-	u, err := url.Parse(endpoint)
+func newWarmBackendS3(conf madmin.TransitionStorageClassS3) (*warmBackendS3, error) {
+	u, err := url.Parse(conf.Endpoint)
 	if err != nil {
 		return nil, err
 	}
-	client, err := minio.New(u.Host, accessKey, secretKey, u.Scheme == "https")
+	client, err := minio.New(u.Host, conf.AccessKey, conf.SecretKey, u.Scheme == "https")
 	if err != nil {
 		return nil, err
 	}

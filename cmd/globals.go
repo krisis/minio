@@ -283,6 +283,8 @@ var (
 	globalProxyTransport http.RoundTripper
 
 	globalDNSCache *xhttp.DNSCache
+
+	globalTransitionStorageClassConfig *TransitionStorageClassConfig
 	// Add new variable global values here.
 )
 
