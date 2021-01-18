@@ -68,12 +68,12 @@ require (
 	github.com/pierrec/lz4 v2.5.2+incompatible
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.8.0
-	github.com/quasilyte/go-ruleguard/dsl/fluent v0.0.0-20201222093424-5d7e62a465d3 // indirect
 	github.com/rjeczalik/notify v0.9.2
 	github.com/rs/cors v1.7.0
 	github.com/secure-io/sio-go v0.3.0
 	github.com/shirou/gopsutil v3.20.11+incompatible
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
+	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/streadway/amqp v1.0.0
 	github.com/tidwall/gjson v1.3.5
 	github.com/tidwall/sjson v1.0.4
