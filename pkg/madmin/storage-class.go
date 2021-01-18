@@ -19,7 +19,11 @@ package madmin
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/url"
+	"strings"
 )
 
 type StorageClassType int
@@ -52,19 +56,57 @@ func NewStorageClassType(scType string) (StorageClassType, error) {
 	case GCS.String():
 		return GCS, nil
 	}
+
 	return unsupported, errors.New("Unsupported storage class type")
 }
 
-type StorageClassConfig struct {
+type TransitionStorageClassConfig struct {
 	Type  StorageClassType
 	S3    *TransitionStorageClassS3
 	Azure *TransitionStorageClassAzure
 	GCS   *TransitionStorageClassGCS
 }
 
-func (adm *AdminClient) AddStorageClass(ctx context.Context, cfg StorageClassConfig) error {
-	// TODO: instantiate the appropriate warm backend based on storage-class type
-	// use this driver to validate the creds supplied as part of storage-class config
-	// on success, update tenant's storage class config store etc.
+func (cfg *TransitionStorageClassConfig) Name() string {
+	switch cfg.Type {
+	case S3:
+		return cfg.S3.Name
+	case Azure:
+		return cfg.Azure.Name
+	case GCS:
+		return cfg.Azure.Name
+	}
+	panic("unexpected transition storage-class type")
+}
+
+const StorageClassAPI = "transition-storage-class"
+
+func (adm *AdminClient) AddStorageClass(ctx context.Context, cfg TransitionStorageClassConfig) error {
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	// FIXME: encrypt storage-class config payload
+
+	queryValues := url.Values{}
+	queryValues.Set("add", "")
+
+	reqData := requestData{
+		relPath:     strings.Join([]string{adminAPIPrefix, StorageClassAPI}, "/"),
+		queryValues: queryValues,
+		content:     data,
+	}
+
+	// Execute PUT on /minio/admin/v3/transition-storage-class?add to add a transition storage-class.
+	resp, err := adm.executeMethod(ctx, http.MethodPut, reqData)
+
+	defer closeResponse(resp)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return httpRespToErrorResponse(resp)
+	}
 	return nil
 }
