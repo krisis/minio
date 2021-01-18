@@ -44,6 +44,13 @@ func GCSRegion(region string) func(*TransitionStorageClassGCS) error {
 	}
 }
 
+func GCSEndpoint(endpoint string) func(*TransitionStorageClassGCS) error {
+	return func(gcs *TransitionStorageClassGCS) error {
+		gcs.Endpoint = endpoint
+		return nil
+	}
+}
+
 func (gcs *TransitionStorageClassGCS) GetCredentialJSON() ([]byte, error) {
 	return base64.URLEncoding.DecodeString(gcs.Creds)
 }
