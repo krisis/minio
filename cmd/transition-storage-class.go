@@ -23,67 +23,70 @@ import (
 	"path"
 	"sync"
 
+	"github.com/minio/minio-go/v7/pkg/set"
 	"github.com/minio/minio/pkg/hash"
 	"github.com/minio/minio/pkg/madmin"
 )
 
 var transitionStorageClassConfigPath string = path.Join(minioConfigPrefix, "transition-storage-class-config.json")
 
-type TransitionStorageClassConfig struct {
+type TransitionStorageClassConfigMgr struct {
 	sync.RWMutex
-	drivercache map[string]warmBackend
-	S3          map[string]madmin.TransitionStorageClassS3    `json:"s3"`
-	Azure       map[string]madmin.TransitionStorageClassAzure `json:"azure"`
-	GCS         map[string]madmin.TransitionStorageClassGCS   `json:"gcs"`
+	storageClassNames set.StringSet
+	drivercache       map[string]warmBackend
+	S3                map[string]madmin.TransitionStorageClassS3    `json:"s3"`
+	Azure             map[string]madmin.TransitionStorageClassAzure `json:"azure"`
+	GCS               map[string]madmin.TransitionStorageClassGCS   `json:"gcs"`
 }
 
-func (config *TransitionStorageClassConfig) Add(i interface{}) error {
+func (config *TransitionStorageClassConfigMgr) Add(sc madmin.TransitionStorageClassConfig) error {
 	config.Lock()
 	defer config.Unlock()
 
-	switch c := i.(type) {
-	case madmin.TransitionStorageClassS3:
-		_, ok := config.S3[c.Name]
-		if ok {
-			return errInvalidArgument
-		}
-		config.S3[c.Name] = c
-	case madmin.TransitionStorageClassAzure:
-		_, ok := config.Azure[c.Name]
-		if ok {
-			return errInvalidArgument
-		}
-		config.Azure[c.Name] = c
-	case madmin.TransitionStorageClassGCS:
-		_, ok := config.GCS[c.Name]
-		if ok {
-			return errInvalidArgument
-		}
-		config.GCS[c.Name] = c
-	default:
-		return errInvalidArgument
+	scName := sc.Name()
+	// storage-class name already in use
+	if config.storageClassNames.Contains(scName) {
+		return errInvalidArgument // FIXME(kp): errTransitionStorageClassAlreadyExists?
 	}
-	return nil
+
+	switch sc.Type {
+	case madmin.S3:
+		config.S3[scName] = *sc.S3
+
+	case madmin.Azure:
+		config.Azure[scName] = *sc.Azure
+
+	case madmin.GCS:
+		config.GCS[scName] = *sc.GCS
+	}
+
+	return errInvalidArgument
 }
 
-func (config *TransitionStorageClassConfig) Edit(i interface{}) error {
+func (config *TransitionStorageClassConfigMgr) Edit(sc madmin.TransitionStorageClassConfig) error {
 	config.Lock()
 	defer config.Unlock()
 
-	switch c := i.(type) {
-	case madmin.TransitionStorageClassS3:
-		config.S3[c.Name] = c
-	case madmin.TransitionStorageClassAzure:
-		config.Azure[c.Name] = c
-	case madmin.TransitionStorageClassGCS:
-		config.GCS[c.Name] = c
-	default:
-		return errInvalidArgument
+	scName := sc.Name()
+	// no storage-class by this name exists
+	if !config.storageClassNames.Contains(scName) {
+		return errInvalidArgument // FIXME(kp): errTransitionStorageClassNotFound?
 	}
-	return nil
+
+	switch sc.Type {
+	case madmin.S3:
+		config.S3[scName] = *sc.S3
+
+	case madmin.Azure:
+		config.Azure[scName] = *sc.Azure
+
+	case madmin.GCS:
+		config.GCS[scName] = *sc.GCS
+	}
+	return errInvalidArgument
 }
 
-func (config *TransitionStorageClassConfig) RemoveStorageClass(name string) {
+func (config *TransitionStorageClassConfigMgr) RemoveStorageClass(name string) {
 	config.Lock()
 	defer config.Unlock()
 
@@ -94,13 +97,13 @@ func (config *TransitionStorageClassConfig) RemoveStorageClass(name string) {
 	delete(config.GCS, name)
 }
 
-func (config *TransitionStorageClassConfig) Byte() ([]byte, error) {
+func (config *TransitionStorageClassConfigMgr) Bytes() ([]byte, error) {
 	config.Lock()
 	defer config.Unlock()
 	return json.Marshal(config)
 }
 
-func (config *TransitionStorageClassConfig) GetDriver(sc string) (warmBackend, error) {
+func (config *TransitionStorageClassConfigMgr) GetDriver(sc string) (warmBackend, error) {
 	config.Lock()
 	defer config.Unlock()
 
@@ -127,7 +130,7 @@ func (config *TransitionStorageClassConfig) GetDriver(sc string) (warmBackend, e
 }
 
 func saveGlobalTransitionStorageClassConfig() error {
-	b, err := json.Marshal(globalTransitionStorageClassConfig)
+	b, err := json.Marshal(globalTransitionStorageClassConfigMgr)
 	if err != nil {
 		return err
 	}
@@ -144,15 +147,30 @@ func loadGlobalTransitionStorageClassConfig() error {
 	err := globalObjectAPI.GetObject(context.Background(), minioMetaBucket, transitionStorageClassConfigPath, 0, -1, &buf, "", ObjectOptions{})
 	if err != nil {
 		if isErrObjectNotFound(err) {
-			globalTransitionStorageClassConfig = &TransitionStorageClassConfig{}
+			globalTransitionStorageClassConfigMgr = &TransitionStorageClassConfigMgr{}
 		}
 		return err
 	}
-	var config TransitionStorageClassConfig
+	var config TransitionStorageClassConfigMgr
 	err = json.Unmarshal(buf.Bytes(), &config)
 	if err != nil {
 		return err
 	}
-	globalTransitionStorageClassConfig = &config
+
+	// Build the set of (unique) user-defined transition storage-class names
+	// from transition-storage-class-config.json
+	storageClassNames := set.NewStringSet()
+	for scName, _ := range config.S3 {
+		storageClassNames.Add(scName)
+	}
+	for scName, _ := range config.Azure {
+		storageClassNames.Add(scName)
+	}
+	for scName, _ := range config.GCS {
+		storageClassNames.Add(scName)
+	}
+	config.storageClassNames = storageClassNames
+
+	globalTransitionStorageClassConfigMgr = &config
 	return nil
 }
