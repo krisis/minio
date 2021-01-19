@@ -98,3 +98,9 @@ var errAccessDenied = errors.New("Do not have enough permissions to access this 
 
 // error returned when object is locked.
 var errLockedObject = errors.New("Object is WORM protected and cannot be overwritten or deleted")
+
+// error returned when transition storage-class is not found
+var errTransitionStorageClassNotFound = errors.New("Specified transition storage-class not found")
+
+// error returned when transition storage-class already exists
+var errTransitionStorageClassAlreadyExists = errors.New("Specified transition storage-class already exists")
