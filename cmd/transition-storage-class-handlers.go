@@ -31,7 +31,15 @@ func (api adminAPIHandlers) AddStorageClassHandler(w http.ResponseWriter, r *htt
 		writeErrorResponseJSON(ctx, w, toAdminAPIErr(ctx, err), r.URL)
 		return
 	}
+
+	err = saveGlobalTransitionStorageClassConfig()
+	if err != nil {
+		writeErrorResponseJSON(ctx, w, toAdminAPIErr(ctx, err), r.URL)
+		return
+	}
 	globalNotificationSys.LoadTransitionStorageClassConfig(ctx)
+
+	writeSuccessNoContent(w)
 }
 
 func (api adminAPIHandlers) RemoveStorageClassHandler(w http.ResponseWriter, r *http.Request) {
@@ -49,7 +57,14 @@ func (api adminAPIHandlers) RemoveStorageClassHandler(w http.ResponseWriter, r *
 	scName := vars["name"]
 
 	globalTransitionStorageClassConfigMgr.RemoveStorageClass(scName)
+	err := saveGlobalTransitionStorageClassConfig()
+	if err != nil {
+		writeErrorResponseJSON(ctx, w, toAdminAPIErr(ctx, err), r.URL)
+		return
+	}
 	globalNotificationSys.LoadTransitionStorageClassConfig(ctx)
+
+	writeSuccessNoContent(w)
 }
 
 func (api adminAPIHandlers) ListStorageClassHandler(w http.ResponseWriter, r *http.Request) {
@@ -63,12 +78,12 @@ func (api adminAPIHandlers) ListStorageClassHandler(w http.ResponseWriter, r *ht
 		return
 	}
 
-	b, err := globalTransitionStorageClassConfigMgr.Bytes()
+	data, err := globalTransitionStorageClassConfigMgr.Bytes()
 	if err != nil {
 		writeErrorResponseJSON(ctx, w, toAdminAPIErr(ctx, err), r.URL)
 		return
 	}
-	w.Write(b)
+	writeSuccessResponseJSON(w, data)
 }
 
 func (api adminAPIHandlers) EditStorageClassHandler(w http.ResponseWriter, r *http.Request) {
@@ -92,5 +107,12 @@ func (api adminAPIHandlers) EditStorageClassHandler(w http.ResponseWriter, r *ht
 		writeErrorResponseJSON(ctx, w, toAdminAPIErr(ctx, err), r.URL)
 		return
 	}
+
+	if err := saveGlobalTransitionStorageClassConfig(); err != nil {
+		writeErrorResponseJSON(ctx, w, toAdminAPIErr(ctx, err), r.URL)
+		return
+	}
 	globalNotificationSys.LoadTransitionStorageClassConfig(ctx)
+
+	writeSuccessNoContent(w)
 }
