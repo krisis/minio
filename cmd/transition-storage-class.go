@@ -125,28 +125,35 @@ func (config *TransitionStorageClassConfigMgr) Bytes() ([]byte, error) {
 	return json.Marshal(config)
 }
 
-func (config *TransitionStorageClassConfigMgr) GetDriver(sc string) (warmBackend, error) {
+func (config *TransitionStorageClassConfigMgr) GetDriver(sc string) (d warmBackend, err error) {
 	config.Lock()
 	defer config.Unlock()
 
-	d := config.drivercache[sc]
+	d = config.drivercache[sc]
 	if d != nil {
 		return d, nil
 	}
 	for k, v := range config.S3 {
 		if k == sc {
-			return newWarmBackendS3(v)
+			d, err = newWarmBackendS3(v)
+			break
 		}
 	}
 	for k, v := range config.Azure {
 		if k == sc {
-			return newWarmBackendAzure(v)
+			d, err = newWarmBackendAzure(v)
+			break
 		}
 	}
 	for k, v := range config.GCS {
 		if k == sc {
-			return newWarmBackendGCS(v)
+			d, err = newWarmBackendGCS(v)
+			break
 		}
+	}
+	if d != nil {
+		config.drivercache[sc] = d
+		return d, nil
 	}
 	return nil, errInvalidArgument
 }
