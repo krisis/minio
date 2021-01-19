@@ -99,13 +99,12 @@ func (adm *AdminClient) AddStorageClass(ctx context.Context, cfg TransitionStora
 
 	// Execute PUT on /minio/admin/v3/transition-storage-class?add to add a transition storage-class.
 	resp, err := adm.executeMethod(ctx, http.MethodPut, reqData)
-
 	defer closeResponse(resp)
 	if err != nil {
 		return err
 	}
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusNoContent {
 		return httpRespToErrorResponse(resp)
 	}
 	return nil
