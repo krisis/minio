@@ -9,6 +9,21 @@ import (
 	"github.com/minio/minio/pkg/madmin"
 )
 
+var (
+	// error returned when transition storage-class already exists
+	errTransitionStorageClassAlreadyExists = AdminError{
+		Code:       "XMinioAdminStorageClassAlreadyExists",
+		Message:    "Specified transition storage-class already exists",
+		StatusCode: http.StatusConflict,
+	}
+	// error returned when transition storage-class is not found
+	errTransitionStorageClassNotFound = AdminError{
+		Code:       "XMinioAdminStorageClassNotFound",
+		Message:    "Specified transition storage-class was not found",
+		StatusCode: http.StatusNotFound,
+	}
+)
+
 func (api adminAPIHandlers) AddStorageClassHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := newContext(r, w, "AddStorageClass")
 
