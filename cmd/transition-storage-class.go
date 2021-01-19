@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"path"
 	"sync"
 
@@ -48,7 +49,7 @@ func (config *TransitionStorageClassConfigMgr) Add(sc madmin.TransitionStorageCl
 	if config.storageClassNames.Contains(scName) {
 		return errInvalidArgument // FIXME(kp): errTransitionStorageClassAlreadyExists?
 	}
-
+	config.storageClassNames.Add(scName)
 	switch sc.Type {
 	case madmin.S3:
 		config.S3[scName] = *sc.S3
@@ -58,9 +59,12 @@ func (config *TransitionStorageClassConfigMgr) Add(sc madmin.TransitionStorageCl
 
 	case madmin.GCS:
 		config.GCS[scName] = *sc.GCS
+
+	default:
+		return errors.New("Unsupported transition storage-class type")
 	}
 
-	return errInvalidArgument
+	return nil
 }
 
 func (config *TransitionStorageClassConfigMgr) Edit(sc madmin.TransitionStorageClassConfig) error {
@@ -147,7 +151,14 @@ func loadGlobalTransitionStorageClassConfig() error {
 	err := globalObjectAPI.GetObject(context.Background(), minioMetaBucket, transitionStorageClassConfigPath, 0, -1, &buf, "", ObjectOptions{})
 	if err != nil {
 		if isErrObjectNotFound(err) {
-			globalTransitionStorageClassConfigMgr = &TransitionStorageClassConfigMgr{}
+			globalTransitionStorageClassConfigMgr = &TransitionStorageClassConfigMgr{
+				RWMutex:           sync.RWMutex{},
+				storageClassNames: set.NewStringSet(),
+				drivercache:       map[string]warmBackend{},
+				S3:                map[string]madmin.TransitionStorageClassS3{},
+				Azure:             map[string]madmin.TransitionStorageClassAzure{},
+				GCS:               map[string]madmin.TransitionStorageClassGCS{},
+			}
 		}
 		return err
 	}
@@ -157,16 +168,26 @@ func loadGlobalTransitionStorageClassConfig() error {
 		return err
 	}
 
+	if config.S3 == nil {
+		config.S3 = make(map[string]madmin.TransitionStorageClassS3)
+	}
+	if config.Azure == nil {
+		config.Azure = make(map[string]madmin.TransitionStorageClassAzure)
+	}
+	if config.GCS == nil {
+		config.GCS = make(map[string]madmin.TransitionStorageClassGCS)
+	}
+
 	// Build the set of (unique) user-defined transition storage-class names
 	// from transition-storage-class-config.json
 	storageClassNames := set.NewStringSet()
-	for scName, _ := range config.S3 {
+	for scName := range config.S3 {
 		storageClassNames.Add(scName)
 	}
-	for scName, _ := range config.Azure {
+	for scName := range config.Azure {
 		storageClassNames.Add(scName)
 	}
-	for scName, _ := range config.GCS {
+	for scName := range config.GCS {
 		storageClassNames.Add(scName)
 	}
 	config.storageClassNames = storageClassNames

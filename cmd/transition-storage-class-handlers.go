@@ -25,6 +25,12 @@ func (api adminAPIHandlers) AddStorageClassHandler(w http.ResponseWriter, r *htt
 		writeErrorResponseJSON(ctx, w, toAdminAPIErr(ctx, err), r.URL)
 		return
 	}
+
+	err := globalTransitionStorageClassConfigMgr.Add(cfg)
+	if err != nil {
+		writeErrorResponseJSON(ctx, w, toAdminAPIErr(ctx, err), r.URL)
+		return
+	}
 	globalNotificationSys.LoadTransitionStorageClassConfig(ctx)
 }
 
