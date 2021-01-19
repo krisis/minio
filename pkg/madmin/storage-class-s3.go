@@ -17,8 +17,6 @@
 
 package madmin
 
-import "errors"
-
 type TransitionStorageClassS3 struct {
 	Name         string
 	Endpoint     string
@@ -55,11 +53,6 @@ func S3Endpoint(endpoint string) func(s3 *TransitionStorageClassS3) error {
 
 func S3StorageClass(storageClass string) func(s3 *TransitionStorageClassS3) error {
 	return func(s3 *TransitionStorageClassS3) error {
-		switch storageClass {
-		case "S3_STANDARD", "S3_IA":
-		default:
-			return errors.New("Unsupported S3 storage-class")
-		}
 		s3.StorageClass = storageClass
 		return nil
 	}
@@ -74,7 +67,7 @@ func NewTransitionStorageClassS3(name, accessKey, secretKey, bucket string, opti
 		// Defaults
 		Endpoint:     "https://s3.amazonaws.com",
 		Region:       "",
-		StorageClass: "S3_STANDARD",
+		StorageClass: "",
 	}
 
 	for _, option := range options {
