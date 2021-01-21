@@ -61,7 +61,7 @@ func ExampleTransitionStorageClassGCS() {
 	}
 	fmt.Println(simpleGCSSC)
 
-	fullyCustomGCSSC, err := NewTransitionStorageClassGCS("custom-gcs", credsJSON, "testbucket", GCSEndpoint("https://storage.googleapis.com/storage/v1/"), GCSPrefix("testprefix"))
+	fullyCustomGCSSC, err := NewTransitionStorageClassGCS("custom-gcs", credsJSON, "testbucket", GCSPrefix("testprefix"))
 	if err != nil {
 		log.Fatalln(err, "Failed to create GCS backed storage-class")
 	}
@@ -129,7 +129,7 @@ func TestAzStorageClass(t *testing.T) {
 	}
 	got, err := NewTransitionStorageClassAzure(scName, accessKey, secretKey, bucket, options...)
 	if err != nil {
-		t.Fatalf("Failed to create a custom s3 transition storage class %s", err)
+		t.Fatalf("Failed to create a custom azure transition storage class %s", err)
 	}
 
 	if *got != *want {
@@ -140,7 +140,6 @@ func TestAzStorageClass(t *testing.T) {
 // TestGCSStorageClass tests GCSOptions helpers
 func TestGCSStorageClass(t *testing.T) {
 	scName := "test-gcs"
-	endpoint := "https://mygcs.com"
 	credsJSON := []byte("test-creds-json")
 	encodedCreds := base64.URLEncoding.EncodeToString(credsJSON)
 	bucket, prefix := "testbucket", "testprefix"
@@ -151,18 +150,17 @@ func TestGCSStorageClass(t *testing.T) {
 		Creds:  encodedCreds,
 
 		// custom values
-		Endpoint: endpoint,
+		endpoint: "https://storage.googleapis.com/storage/v1/",
 		Prefix:   prefix,
 		Region:   region,
 	}
 	options := []GCSOptions{
-		GCSEndpoint(endpoint),
 		GCSRegion(region),
 		GCSPrefix(prefix),
 	}
 	got, err := NewTransitionStorageClassGCS(scName, credsJSON, bucket, options...)
 	if err != nil {
-		t.Fatalf("Failed to create a custom s3 transition storage class %s", err)
+		t.Fatalf("Failed to create a custom gcs transition storage class %s", err)
 	}
 
 	if *got != *want {

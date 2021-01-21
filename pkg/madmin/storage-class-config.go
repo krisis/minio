@@ -70,7 +70,7 @@ func (cfg *TransitionStorageClassConfig) Endpoint() string {
 	case Azure:
 		return cfg.Azure.Endpoint
 	case GCS:
-		return cfg.Azure.Endpoint
+		return cfg.GCS.endpoint
 	}
 	log.Printf("unexpected transition storage-class type %s", cfg.Type)
 	return ""
@@ -83,7 +83,7 @@ func (cfg *TransitionStorageClassConfig) Bucket() string {
 	case Azure:
 		return cfg.Azure.Bucket
 	case GCS:
-		return cfg.Azure.Bucket
+		return cfg.GCS.Bucket
 	}
 	log.Printf("unexpected transition storage-class type %s", cfg.Type)
 	return ""

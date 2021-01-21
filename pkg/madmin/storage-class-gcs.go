@@ -21,7 +21,7 @@ import "encoding/base64"
 
 type TransitionStorageClassGCS struct {
 	Name     string
-	Endpoint string
+	endpoint string // custom endpoint is not supported for GCS
 	Creds    string // base64 encoding of credentials.json FIXME: TBD how do we persist gcs creds file
 	Bucket   string
 	Prefix   string
@@ -44,13 +44,6 @@ func GCSRegion(region string) func(*TransitionStorageClassGCS) error {
 	}
 }
 
-func GCSEndpoint(endpoint string) func(*TransitionStorageClassGCS) error {
-	return func(gcs *TransitionStorageClassGCS) error {
-		gcs.Endpoint = endpoint
-		return nil
-	}
-}
-
 func (gcs *TransitionStorageClassGCS) GetCredentialJSON() ([]byte, error) {
 	return base64.URLEncoding.DecodeString(gcs.Creds)
 }
@@ -62,8 +55,9 @@ func NewTransitionStorageClassGCS(name string, credsJSON []byte, bucket string, 
 		Creds:  creds,
 		Bucket: bucket,
 		// Defaults
-		Prefix: "",
-		Region: "",
+		endpoint: "https://storage.googleapis.com/storage/v1/", // endpoint is meant only for client-side display purposes
+		Prefix:   "",
+		Region:   "",
 	}
 
 	for _, option := range options {
