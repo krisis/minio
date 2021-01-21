@@ -25,7 +25,7 @@ import (
 type StorageClassType int
 
 const (
-	unsupported StorageClassType = iota
+	Unsupported StorageClassType = iota
 	S3
 	Azure
 	GCS
@@ -53,7 +53,7 @@ func NewStorageClassType(scType string) (StorageClassType, error) {
 		return GCS, nil
 	}
 
-	return unsupported, errors.New("Unsupported storage class type")
+	return Unsupported, errors.New("Unsupported storage class type")
 }
 
 type TransitionStorageClassConfig struct {
@@ -70,7 +70,7 @@ func (cfg *TransitionStorageClassConfig) Endpoint() string {
 	case Azure:
 		return cfg.Azure.Endpoint
 	case GCS:
-		return cfg.GCS.endpoint
+		return cfg.GCS.Endpoint
 	}
 	log.Printf("unexpected transition storage-class type %s", cfg.Type)
 	return ""
