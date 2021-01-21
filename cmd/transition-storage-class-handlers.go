@@ -2,10 +2,12 @@ package cmd
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 
 	"github.com/gorilla/mux"
 	"github.com/minio/minio/cmd/logger"
+	iampolicy "github.com/minio/minio/pkg/iam/policy"
 	"github.com/minio/minio/pkg/madmin"
 )
 
@@ -29,19 +31,26 @@ func (api adminAPIHandlers) AddStorageClassHandler(w http.ResponseWriter, r *htt
 
 	defer logger.AuditLog(w, r, "AddStorageClass", mustGetClaimsFromToken(r))
 
-	objectAPI := newObjectLayerFn()
+	objectAPI, cred := validateAdminUsersReq(ctx, w, r, iampolicy.SetStorageClassAction)
 	if objectAPI == nil || globalNotificationSys == nil || globalTransitionStorageClassConfigMgr == nil {
 		writeErrorResponseJSON(ctx, w, errorCodes.ToAPIErr(ErrServerNotInitialized), r.URL)
 		return
 	}
 
+	password := cred.SecretKey
+	reqBytes, err := madmin.DecryptData(password, io.LimitReader(r.Body, r.ContentLength))
+	if err != nil {
+		writeErrorResponseJSON(ctx, w, errorCodes.ToAPIErrWithErr(ErrAdminConfigBadJSON, err), r.URL)
+		return
+	}
+
 	var cfg madmin.TransitionStorageClassConfig
-	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
+	if err := json.Unmarshal(reqBytes, &cfg); err != nil {
 		writeErrorResponseJSON(ctx, w, toAdminAPIErr(ctx, err), r.URL)
 		return
 	}
 
-	err := globalTransitionStorageClassConfigMgr.Add(cfg)
+	err = globalTransitionStorageClassConfigMgr.Add(cfg)
 	if err != nil {
 		writeErrorResponseJSON(ctx, w, toAdminAPIErr(ctx, err), r.URL)
 		return
@@ -62,7 +71,7 @@ func (api adminAPIHandlers) RemoveStorageClassHandler(w http.ResponseWriter, r *
 
 	defer logger.AuditLog(w, r, "RemoveStorageClass", mustGetClaimsFromToken(r))
 
-	objectAPI := newObjectLayerFn()
+	objectAPI, _ := validateAdminUsersReq(ctx, w, r, iampolicy.RemoveStorageClassAction)
 	if objectAPI == nil || globalNotificationSys == nil || globalTransitionStorageClassConfigMgr == nil {
 		writeErrorResponseJSON(ctx, w, errorCodes.ToAPIErr(ErrServerNotInitialized), r.URL)
 		return
@@ -87,7 +96,7 @@ func (api adminAPIHandlers) ListStorageClassHandler(w http.ResponseWriter, r *ht
 
 	defer logger.AuditLog(w, r, "ListStorageClass", mustGetClaimsFromToken(r))
 
-	objectAPI := newObjectLayerFn()
+	objectAPI, _ := validateAdminUsersReq(ctx, w, r, iampolicy.ListStorageClassAction)
 	if objectAPI == nil || globalNotificationSys == nil || globalTransitionStorageClassConfigMgr == nil {
 		writeErrorResponseJSON(ctx, w, errorCodes.ToAPIErr(ErrServerNotInitialized), r.URL)
 		return
@@ -108,7 +117,7 @@ func (api adminAPIHandlers) EditStorageClassHandler(w http.ResponseWriter, r *ht
 
 	defer logger.AuditLog(w, r, "EditStorageClass", mustGetClaimsFromToken(r))
 
-	objectAPI := newObjectLayerFn()
+	objectAPI, _ := validateAdminUsersReq(ctx, w, r, iampolicy.SetStorageClassAction)
 	if objectAPI == nil || globalNotificationSys == nil || globalTransitionStorageClassConfigMgr == nil {
 		writeErrorResponseJSON(ctx, w, errorCodes.ToAPIErr(ErrServerNotInitialized), r.URL)
 		return

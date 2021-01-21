@@ -117,6 +117,15 @@ const (
 	// GetBucketTargetAction - allow getting bucket targets
 	GetBucketTargetAction = "admin:GetBucketTarget"
 
+	// Transition Storage-Class admin Actions
+
+	// SetStorageClassAction - allow adding/editing transition storage-classes
+	SetStorageClassAction = "admin:SetStorageClass"
+	// RemoveStorageClassAction - allow removing transition storage-classes
+	RemoveStorageClassAction = "admin:RemoveStorageClass"
+	// ListStorageClassAction - allow listing transition storage-classes
+	ListStorageClassAction = "admin:ListStorageClass"
+
 	// AllAdminActions - provides all admin permissions
 	AllAdminActions = "admin:*"
 )
@@ -159,6 +168,9 @@ var supportedAdminActions = map[AdminAction]struct{}{
 	GetBucketQuotaAdminAction:      {},
 	SetBucketTargetAction:          {},
 	GetBucketTargetAction:          {},
+	SetStorageClassAction:          {},
+	RemoveStorageClassAction:       {},
+	ListStorageClassAction:         {},
 	AllAdminActions:                {},
 }
 
@@ -206,4 +218,7 @@ var adminActionConditionKeyMap = map[Action]condition.KeySet{
 	GetBucketQuotaAdminAction:      condition.NewKeySet(condition.AllSupportedAdminKeys...),
 	SetBucketTargetAction:          condition.NewKeySet(condition.AllSupportedAdminKeys...),
 	GetBucketTargetAction:          condition.NewKeySet(condition.AllSupportedAdminKeys...),
+	SetStorageClassAction:          condition.NewKeySet(condition.AllSupportedAdminKeys...),
+	RemoveStorageClassAction:       condition.NewKeySet(condition.AllSupportedAdminKeys...),
+	ListStorageClassAction:         condition.NewKeySet(condition.AllSupportedAdminKeys...),
 }
