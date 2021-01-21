@@ -33,7 +33,10 @@ func (adm *AdminClient) AddStorageClass(ctx context.Context, cfg TransitionStora
 	if err != nil {
 		return err
 	}
-	// FIXME: encrypt storage-class config payload
+	encData, err := EncryptData(adm.getSecretKey(), data)
+	if err != nil {
+		return err
+	}
 
 	queryValues := url.Values{}
 	queryValues.Set("add", "")
@@ -41,7 +44,7 @@ func (adm *AdminClient) AddStorageClass(ctx context.Context, cfg TransitionStora
 	reqData := requestData{
 		relPath:     strings.Join([]string{adminAPIPrefix, StorageClassAPI}, "/"),
 		queryValues: queryValues,
-		content:     data,
+		content:     encData,
 	}
 
 	// Execute PUT on /minio/admin/v3/transition-storage-class?add to add a
