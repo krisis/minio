@@ -47,7 +47,7 @@ func (adm *AdminClient) AddStorageClass(ctx context.Context, cfg TransitionStora
 		content:     encData,
 	}
 
-	// Execute PUT on /minio/admin/v3/transition-storage-class?add to add a
+	// Execute PUT on /minio/admin/v3/transition-storage-class to add a
 	// transition storage-class.
 	resp, err := adm.executeMethod(ctx, http.MethodPut, reqData)
 	defer closeResponse(resp)
@@ -90,4 +90,37 @@ func (adm *AdminClient) ListStorageClasses(ctx context.Context) ([]TransitionSto
 	}
 
 	return storageClasses, nil
+}
+
+type StorageClassCreds struct {
+	AccessKey string `json:"access,omitempty"`
+	SecretKey string `json:"secret,omitempty"`
+	CredsJSON []byte `json:"creds,omitempty"`
+}
+
+func (adm *AdminClient) EditStorageClass(ctx context.Context, scName string, creds StorageClassCreds) error {
+	data, err := json.Marshal(creds)
+	if err != nil {
+		return err
+	}
+
+	encData, err := EncryptData(adm.getSecretKey(), data)
+	reqData := requestData{
+		relPath: strings.Join([]string{adminAPIPrefix, StorageClassAPI, scName}, "/"),
+		content: encData,
+	}
+
+	// Execute POST on /minio/admin/v3/transition-storage-class/storageClassName" to edit
+	// transition storage-classes configured.
+	resp, err := adm.executeMethod(ctx, http.MethodPost, reqData)
+	defer closeResponse(resp)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != http.StatusNoContent {
+		return httpRespToErrorResponse(resp)
+	}
+
+	return nil
 }

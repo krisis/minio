@@ -78,7 +78,7 @@ func (api adminAPIHandlers) RemoveStorageClassHandler(w http.ResponseWriter, r *
 	}
 
 	var vars = mux.Vars(r)
-	scName := vars["name"]
+	scName := vars["storageclass"]
 
 	globalTransitionStorageClassConfigMgr.RemoveStorageClass(scName)
 	err := saveGlobalTransitionStorageClassConfig()
@@ -117,19 +117,28 @@ func (api adminAPIHandlers) EditStorageClassHandler(w http.ResponseWriter, r *ht
 
 	defer logger.AuditLog(w, r, "EditStorageClass", mustGetClaimsFromToken(r))
 
-	objectAPI, _ := validateAdminUsersReq(ctx, w, r, iampolicy.SetStorageClassAction)
+	objectAPI, cred := validateAdminUsersReq(ctx, w, r, iampolicy.SetStorageClassAction)
 	if objectAPI == nil || globalNotificationSys == nil || globalTransitionStorageClassConfigMgr == nil {
 		writeErrorResponseJSON(ctx, w, errorCodes.ToAPIErr(ErrServerNotInitialized), r.URL)
 		return
 	}
+	vars := mux.Vars(r)
+	scName := vars["storageclass"]
 
-	// FIXME: edit should allow only creds to be updated
-	var sc madmin.TransitionStorageClassConfig
-	if err := json.NewDecoder(r.Body).Decode(&sc); err != nil {
+	password := cred.SecretKey
+	reqBytes, err := madmin.DecryptData(password, io.LimitReader(r.Body, r.ContentLength))
+	if err != nil {
+		writeErrorResponseJSON(ctx, w, errorCodes.ToAPIErrWithErr(ErrAdminConfigBadJSON, err), r.URL)
+		return
+	}
+
+	var creds madmin.StorageClassCreds
+	if err := json.Unmarshal(reqBytes, &creds); err != nil {
 		writeErrorResponseJSON(ctx, w, toAdminAPIErr(ctx, err), r.URL)
 		return
 	}
-	if err := globalTransitionStorageClassConfigMgr.Edit(sc); err != nil {
+
+	if err := globalTransitionStorageClassConfigMgr.Edit(scName, creds); err != nil {
 		writeErrorResponseJSON(ctx, w, toAdminAPIErr(ctx, err), r.URL)
 		return
 	}

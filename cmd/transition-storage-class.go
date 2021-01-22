@@ -19,6 +19,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"path"
@@ -38,24 +39,26 @@ type TransitionStorageClassConfigMgr struct {
 	GCS         map[string]madmin.TransitionStorageClassGCS   `json:"gcs"`
 }
 
-func (config *TransitionStorageClassConfigMgr) isStorageClassNameInUse(scName string) bool {
+func (config *TransitionStorageClassConfigMgr) isStorageClassNameInUse(scName string) (madmin.StorageClassType, bool) {
 	for name := range config.S3 {
 		if scName == name {
-			return true
+			return madmin.S3, true
 		}
 	}
+
 	for name := range config.Azure {
 		if scName == name {
-			return true
+			return madmin.Azure, true
 		}
 	}
 
 	for name := range config.GCS {
 		if scName == name {
-			return true
+			return madmin.GCS, true
 		}
 	}
-	return false
+
+	return madmin.Unsupported, false
 }
 
 func (config *TransitionStorageClassConfigMgr) Add(sc madmin.TransitionStorageClassConfig) error {
@@ -64,7 +67,7 @@ func (config *TransitionStorageClassConfigMgr) Add(sc madmin.TransitionStorageCl
 
 	scName := sc.Name()
 	// storage-class name already in use
-	if config.isStorageClassNameInUse(scName) {
+	if _, exists := config.isStorageClassNameInUse(scName); exists {
 		return errTransitionStorageClassAlreadyExists
 	}
 
@@ -123,27 +126,39 @@ func (config *TransitionStorageClassConfigMgr) ListStorageClasses() []madmin.Tra
 	return storageClasses
 }
 
-func (config *TransitionStorageClassConfigMgr) Edit(sc madmin.TransitionStorageClassConfig) error {
+func (config *TransitionStorageClassConfigMgr) Edit(scName string, creds madmin.StorageClassCreds) error {
 	config.Lock()
 	defer config.Unlock()
 
-	scName := sc.Name()
-	// no storage-class by this name exists
-	if !config.isStorageClassNameInUse(scName) {
+	// check if storage-class by this name exists
+	var (
+		scType madmin.StorageClassType
+		exists bool
+	)
+	if scType, exists = config.isStorageClassNameInUse(scName); !exists {
 		return errTransitionStorageClassNotFound
 	}
 
-	switch sc.Type {
+	switch scType {
 	case madmin.S3:
-		config.S3[scName] = *sc.S3
+		sc := config.S3[scName]
+		sc.AccessKey = creds.AccessKey
+		sc.SecretKey = creds.SecretKey
+		config.S3[scName] = sc
 
 	case madmin.Azure:
-		config.Azure[scName] = *sc.Azure
+		sc := config.Azure[scName]
+		sc.AccessKey = creds.AccessKey
+		sc.SecretKey = creds.SecretKey
+		config.Azure[scName] = sc
 
 	case madmin.GCS:
-		config.GCS[scName] = *sc.GCS
+		sc := config.GCS[scName]
+		sc.Creds = base64.URLEncoding.EncodeToString(creds.CredsJSON)
+		config.GCS[scName] = sc
 	}
-	return errInvalidArgument
+
+	return nil
 }
 
 func (config *TransitionStorageClassConfigMgr) RemoveStorageClass(name string) {

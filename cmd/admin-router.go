@@ -188,10 +188,10 @@ func registerAdminRouter(router *mux.Router, enableConfigOps, enableIAMOps bool)
 			adminRouter.Methods(http.MethodDelete).Path(adminVersion+"/remove-remote-target").HandlerFunc(
 				httpTraceHdrs(adminAPI.RemoveRemoteTargetHandler)).Queries("bucket", "{bucket:.*}", "arn", "{arn:.*}")
 
-			adminRouter.Methods(http.MethodPut).Path(adminVersion+"/transition-storage-class").HandlerFunc(httpTraceHdrs(adminAPI.AddStorageClassHandler)).Queries("add", "")
-			adminRouter.Methods(http.MethodPut).Path(adminVersion+"/transition-storage-class").HandlerFunc(httpTraceHdrs(adminAPI.EditStorageClassHandler)).Queries("edit", "")
+			adminRouter.Methods(http.MethodPut).Path(adminVersion + "/transition-storage-class").HandlerFunc(httpTraceHdrs(adminAPI.AddStorageClassHandler))
+			adminRouter.Methods(http.MethodPost).Path(adminVersion + "/transition-storage-class/{storageclass}").HandlerFunc(httpTraceHdrs(adminAPI.EditStorageClassHandler))
 			adminRouter.Methods(http.MethodGet).Path(adminVersion + "/transition-storage-class").HandlerFunc(httpTraceHdrs(adminAPI.ListStorageClassHandler))
-			adminRouter.Methods(http.MethodDelete).Path(adminVersion + "/transition-storage-class").HandlerFunc(httpTraceHdrs(adminAPI.RemoveStorageClassHandler))
+			adminRouter.Methods(http.MethodDelete).Path(adminVersion + "/transition-storage-class/{storageclass}").HandlerFunc(httpTraceHdrs(adminAPI.RemoveStorageClassHandler))
 		}
 
 		// -- Top APIs --
