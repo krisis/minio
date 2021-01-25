@@ -40,7 +40,7 @@ func (s3 *warmBackendS3) Remove(ctx context.Context, object string) error {
 	return s3.client.RemoveObject(ctx, s3.Bucket, s3.getDest(object), minio.RemoveObjectOptions{})
 }
 
-func newWarmBackendS3(conf madmin.TransitionStorageClassS3) (*warmBackendS3, error) {
+func newWarmBackendS3(conf madmin.TierS3) (*warmBackendS3, error) {
 	u, err := url.Parse(conf.Endpoint)
 	if err != nil {
 		return nil, err

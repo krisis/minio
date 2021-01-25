@@ -17,7 +17,7 @@
 
 package madmin
 
-type TransitionStorageClassS3 struct {
+type TierAzure struct {
 	Name         string
 	Endpoint     string
 	AccessKey    string
@@ -28,54 +28,55 @@ type TransitionStorageClassS3 struct {
 	StorageClass string
 }
 
-type S3Options func(*TransitionStorageClassS3) error
+type AzureOptions func(*TierAzure) error
 
-func S3Region(region string) func(s3 *TransitionStorageClassS3) error {
-	return func(s3 *TransitionStorageClassS3) error {
-		s3.Region = region
+func AzurePrefix(prefix string) func(az *TierAzure) error {
+	return func(az *TierAzure) error {
+		az.Prefix = prefix
 		return nil
 	}
 }
 
-func S3Prefix(prefix string) func(s3 *TransitionStorageClassS3) error {
-	return func(s3 *TransitionStorageClassS3) error {
-		s3.Prefix = prefix
+func AzureEndpoint(endpoint string) func(az *TierAzure) error {
+	return func(az *TierAzure) error {
+		az.Endpoint = endpoint
 		return nil
 	}
 }
 
-func S3Endpoint(endpoint string) func(s3 *TransitionStorageClassS3) error {
-	return func(s3 *TransitionStorageClassS3) error {
-		s3.Endpoint = endpoint
+func AzureRegion(region string) func(az *TierAzure) error {
+	return func(az *TierAzure) error {
+		az.Region = region
 		return nil
 	}
 }
 
-func S3StorageClass(storageClass string) func(s3 *TransitionStorageClassS3) error {
-	return func(s3 *TransitionStorageClassS3) error {
-		s3.StorageClass = storageClass
+func AzureStorageClass(sc string) func(az *TierAzure) error {
+	return func(az *TierAzure) error {
+		az.StorageClass = sc
 		return nil
 	}
 }
 
-func NewTransitionStorageClassS3(name, accessKey, secretKey, bucket string, options ...S3Options) (*TransitionStorageClassS3, error) {
-	sc := &TransitionStorageClassS3{
+func NewTierAzure(name, accessKey, secretKey, bucket string, options ...AzureOptions) (*TierAzure, error) {
+	az := &TierAzure{
 		Name:      name,
 		AccessKey: accessKey,
 		SecretKey: secretKey,
 		Bucket:    bucket,
 		// Defaults
-		Endpoint:     "https://s3.amazonaws.com",
+		Endpoint:     "http://blob.core.windows.net",
+		Prefix:       "",
 		Region:       "",
 		StorageClass: "",
 	}
 
 	for _, option := range options {
-		err := option(sc)
+		err := option(az)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return sc, nil
+	return az, nil
 }

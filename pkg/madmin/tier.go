@@ -26,13 +26,14 @@ import (
 	"strings"
 )
 
-const StorageClassAPI = "transition-storage-class"
+const TierAPI = "transition-storage-class"
 
-func (adm *AdminClient) AddStorageClass(ctx context.Context, cfg TransitionStorageClassConfig) error {
+func (adm *AdminClient) AddTier(ctx context.Context, cfg TierConfig) error {
 	data, err := json.Marshal(cfg)
 	if err != nil {
 		return err
 	}
+
 	encData, err := EncryptData(adm.getSecretKey(), data)
 	if err != nil {
 		return err
@@ -42,7 +43,7 @@ func (adm *AdminClient) AddStorageClass(ctx context.Context, cfg TransitionStora
 	queryValues.Set("add", "")
 
 	reqData := requestData{
-		relPath:     strings.Join([]string{adminAPIPrefix, StorageClassAPI}, "/"),
+		relPath:     strings.Join([]string{adminAPIPrefix, TierAPI}, "/"),
 		queryValues: queryValues,
 		content:     encData,
 	}
@@ -61,9 +62,9 @@ func (adm *AdminClient) AddStorageClass(ctx context.Context, cfg TransitionStora
 	return nil
 }
 
-func (adm *AdminClient) ListStorageClasses(ctx context.Context) ([]TransitionStorageClassConfig, error) {
+func (adm *AdminClient) ListTiers(ctx context.Context) ([]TierConfig, error) {
 	reqData := requestData{
-		relPath: strings.Join([]string{adminAPIPrefix, StorageClassAPI}, "/"),
+		relPath: strings.Join([]string{adminAPIPrefix, TierAPI}, "/"),
 	}
 
 	// Execute GET on /minio/admin/v3/transition-storage-class to list
@@ -78,7 +79,7 @@ func (adm *AdminClient) ListStorageClasses(ctx context.Context) ([]TransitionSto
 		return nil, httpRespToErrorResponse(resp)
 	}
 
-	var storageClasses []TransitionStorageClassConfig
+	var storageClasses []TierConfig
 	b, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return storageClasses, err
@@ -92,13 +93,13 @@ func (adm *AdminClient) ListStorageClasses(ctx context.Context) ([]TransitionSto
 	return storageClasses, nil
 }
 
-type StorageClassCreds struct {
+type TierCreds struct {
 	AccessKey string `json:"access,omitempty"`
 	SecretKey string `json:"secret,omitempty"`
 	CredsJSON []byte `json:"creds,omitempty"`
 }
 
-func (adm *AdminClient) EditStorageClass(ctx context.Context, scName string, creds StorageClassCreds) error {
+func (adm *AdminClient) EditTier(ctx context.Context, scName string, creds TierCreds) error {
 	data, err := json.Marshal(creds)
 	if err != nil {
 		return err
@@ -106,7 +107,7 @@ func (adm *AdminClient) EditStorageClass(ctx context.Context, scName string, cre
 
 	encData, err := EncryptData(adm.getSecretKey(), data)
 	reqData := requestData{
-		relPath: strings.Join([]string{adminAPIPrefix, StorageClassAPI, scName}, "/"),
+		relPath: strings.Join([]string{adminAPIPrefix, TierAPI, scName}, "/"),
 		content: encData,
 	}
 

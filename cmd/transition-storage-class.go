@@ -34,12 +34,12 @@ var transitionStorageClassConfigPath string = path.Join(minioConfigPrefix, "tran
 type TransitionStorageClassConfigMgr struct {
 	sync.RWMutex
 	drivercache map[string]warmBackend
-	S3          map[string]madmin.TransitionStorageClassS3    `json:"s3"`
-	Azure       map[string]madmin.TransitionStorageClassAzure `json:"azure"`
-	GCS         map[string]madmin.TransitionStorageClassGCS   `json:"gcs"`
+	S3          map[string]madmin.TierS3    `json:"s3"`
+	Azure       map[string]madmin.TierAzure `json:"azure"`
+	GCS         map[string]madmin.TierGCS   `json:"gcs"`
 }
 
-func (config *TransitionStorageClassConfigMgr) isStorageClassNameInUse(scName string) (madmin.StorageClassType, bool) {
+func (config *TransitionStorageClassConfigMgr) isStorageClassNameInUse(scName string) (madmin.TierType, bool) {
 	for name := range config.S3 {
 		if scName == name {
 			return madmin.S3, true
@@ -61,14 +61,14 @@ func (config *TransitionStorageClassConfigMgr) isStorageClassNameInUse(scName st
 	return madmin.Unsupported, false
 }
 
-func (config *TransitionStorageClassConfigMgr) Add(sc madmin.TransitionStorageClassConfig) error {
+func (config *TransitionStorageClassConfigMgr) Add(sc madmin.TierConfig) error {
 	config.Lock()
 	defer config.Unlock()
 
 	scName := sc.Name()
 	// storage-class name already in use
 	if _, exists := config.isStorageClassNameInUse(scName); exists {
-		return errTransitionStorageClassAlreadyExists
+		return errTierAlreadyExists
 	}
 
 	switch sc.Type {
@@ -88,16 +88,16 @@ func (config *TransitionStorageClassConfigMgr) Add(sc madmin.TransitionStorageCl
 	return nil
 }
 
-func (config *TransitionStorageClassConfigMgr) ListStorageClasses() []madmin.TransitionStorageClassConfig {
+func (config *TransitionStorageClassConfigMgr) ListStorageClasses() []madmin.TierConfig {
 	config.RLock()
 	defer config.RUnlock()
 
-	var storageClasses []madmin.TransitionStorageClassConfig
+	var storageClasses []madmin.TierConfig
 	for _, cls := range config.S3 {
 		// This makes a local copy of storage-class config before
 		// passing a reference to it.
 		storageClass := cls
-		storageClasses = append(storageClasses, madmin.TransitionStorageClassConfig{
+		storageClasses = append(storageClasses, madmin.TierConfig{
 			Type: madmin.S3,
 			S3:   &storageClass,
 		})
@@ -107,7 +107,7 @@ func (config *TransitionStorageClassConfigMgr) ListStorageClasses() []madmin.Tra
 		// This makes a local copy of storage-class config before
 		// passing a reference to it.
 		storageClass := cls
-		storageClasses = append(storageClasses, madmin.TransitionStorageClassConfig{
+		storageClasses = append(storageClasses, madmin.TierConfig{
 			Type:  madmin.Azure,
 			Azure: &storageClass,
 		})
@@ -117,7 +117,7 @@ func (config *TransitionStorageClassConfigMgr) ListStorageClasses() []madmin.Tra
 		// This makes a local copy of storage-class config before
 		// passing a reference to it.
 		storageClass := cls
-		storageClasses = append(storageClasses, madmin.TransitionStorageClassConfig{
+		storageClasses = append(storageClasses, madmin.TierConfig{
 			Type: madmin.GCS,
 			GCS:  &storageClass,
 		})
@@ -126,17 +126,17 @@ func (config *TransitionStorageClassConfigMgr) ListStorageClasses() []madmin.Tra
 	return storageClasses
 }
 
-func (config *TransitionStorageClassConfigMgr) Edit(scName string, creds madmin.StorageClassCreds) error {
+func (config *TransitionStorageClassConfigMgr) Edit(scName string, creds madmin.TierCreds) error {
 	config.Lock()
 	defer config.Unlock()
 
 	// check if storage-class by this name exists
 	var (
-		scType madmin.StorageClassType
+		scType madmin.TierType
 		exists bool
 	)
 	if scType, exists = config.isStorageClassNameInUse(scName); !exists {
-		return errTransitionStorageClassNotFound
+		return errTierNotFound
 	}
 
 	switch scType {
@@ -232,9 +232,9 @@ func loadGlobalTransitionStorageClassConfig() error {
 			globalTransitionStorageClassConfigMgr = &TransitionStorageClassConfigMgr{
 				RWMutex:     sync.RWMutex{},
 				drivercache: make(map[string]warmBackend),
-				S3:          make(map[string]madmin.TransitionStorageClassS3),
-				Azure:       make(map[string]madmin.TransitionStorageClassAzure),
-				GCS:         make(map[string]madmin.TransitionStorageClassGCS),
+				S3:          make(map[string]madmin.TierS3),
+				Azure:       make(map[string]madmin.TierAzure),
+				GCS:         make(map[string]madmin.TierGCS),
 			}
 		}
 		return err
@@ -248,13 +248,13 @@ func loadGlobalTransitionStorageClassConfig() error {
 		config.drivercache = make(map[string]warmBackend)
 	}
 	if config.S3 == nil {
-		config.S3 = make(map[string]madmin.TransitionStorageClassS3)
+		config.S3 = make(map[string]madmin.TierS3)
 	}
 	if config.Azure == nil {
-		config.Azure = make(map[string]madmin.TransitionStorageClassAzure)
+		config.Azure = make(map[string]madmin.TierAzure)
 	}
 	if config.GCS == nil {
-		config.GCS = make(map[string]madmin.TransitionStorageClassGCS)
+		config.GCS = make(map[string]madmin.TierGCS)
 	}
 
 	globalTransitionStorageClassConfigMgr = &config

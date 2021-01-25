@@ -21,7 +21,7 @@ import (
 	"encoding/base64"
 )
 
-type TransitionStorageClassGCS struct {
+type TierGCS struct {
 	Name         string
 	Endpoint     string // custom endpoint is not supported for GCS
 	Creds        string // base64 encoding of credentials.json FIXME: TBD how do we persist gcs creds file
@@ -31,35 +31,35 @@ type TransitionStorageClassGCS struct {
 	StorageClass string
 }
 
-type GCSOptions func(*TransitionStorageClassGCS) error
+type GCSOptions func(*TierGCS) error
 
-func GCSPrefix(prefix string) func(*TransitionStorageClassGCS) error {
-	return func(gcs *TransitionStorageClassGCS) error {
+func GCSPrefix(prefix string) func(*TierGCS) error {
+	return func(gcs *TierGCS) error {
 		gcs.Prefix = prefix
 		return nil
 	}
 }
 
-func GCSRegion(region string) func(*TransitionStorageClassGCS) error {
-	return func(gcs *TransitionStorageClassGCS) error {
+func GCSRegion(region string) func(*TierGCS) error {
+	return func(gcs *TierGCS) error {
 		gcs.Region = region
 		return nil
 	}
 }
-func GCSStorageClass(sc string) func(*TransitionStorageClassGCS) error {
-	return func(gcs *TransitionStorageClassGCS) error {
+func GCSStorageClass(sc string) func(*TierGCS) error {
+	return func(gcs *TierGCS) error {
 		gcs.StorageClass = sc
 		return nil
 	}
 }
 
-func (gcs *TransitionStorageClassGCS) GetCredentialJSON() ([]byte, error) {
+func (gcs *TierGCS) GetCredentialJSON() ([]byte, error) {
 	return base64.URLEncoding.DecodeString(gcs.Creds)
 }
 
-func NewTransitionStorageClassGCS(name string, credsJSON []byte, bucket string, options ...GCSOptions) (*TransitionStorageClassGCS, error) {
+func NewTierGCS(name string, credsJSON []byte, bucket string, options ...GCSOptions) (*TierGCS, error) {
 	creds := base64.URLEncoding.EncodeToString(credsJSON)
-	gcs := &TransitionStorageClassGCS{
+	gcs := &TierGCS{
 		Name:   name,
 		Creds:  creds,
 		Bucket: bucket,

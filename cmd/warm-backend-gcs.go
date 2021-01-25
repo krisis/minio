@@ -56,7 +56,7 @@ func (gcs *warmBackendGCS) Remove(ctx context.Context, object string) error {
 	return gcs.client.Bucket(gcs.Bucket).Object(object).Delete(ctx)
 }
 
-func newWarmBackendGCS(conf madmin.TransitionStorageClassGCS) (*warmBackendGCS, error) {
+func newWarmBackendGCS(conf madmin.TierGCS) (*warmBackendGCS, error) {
 	// TODO: trim slash on prefix
 	return nil, nil
 }

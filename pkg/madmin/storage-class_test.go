@@ -24,59 +24,59 @@ import (
 	"testing"
 )
 
-func ExampleTransitionStorageClassS3() {
-	simpleS3SC, err := NewTransitionStorageClassS3("simple-s3", "accessKey", "secretKey", "testbucket")
+func ExampleTransitionTierS3() {
+	simpleS3SC, err := NewTierS3("simple-s3", "accessKey", "secretKey", "testbucket")
 	if err != nil {
-		log.Fatalln(err, "Failed to create s3 backed storage-class")
+		log.Fatalln(err, "Failed to create s3 backed tier")
 	}
 	fmt.Println(simpleS3SC)
 
-	fullyCustomS3SC, err := NewTransitionStorageClassS3("custom-s3", "accessKey", "secretKey", "testbucket",
+	fullyCustomS3SC, err := NewTierS3("custom-s3", "accessKey", "secretKey", "testbucket",
 		S3Endpoint("https://s3.amazonaws.com"), S3Prefix("testprefix"), S3Region("us-west-1"), S3StorageClass("S3_IA"))
 	if err != nil {
-		log.Fatalln(err, "Failed to create s3 storage-class")
+		log.Fatalln(err, "Failed to create s3 tier")
 	}
 	fmt.Println(fullyCustomS3SC)
 }
 
-func ExampleTransitionStorageClassAzure() {
-	simpleAzSC, err := NewTransitionStorageClassAzure("simple-az", "accessKey", "secretKey", "testbucket")
+func ExampleTransitionTierAzure() {
+	simpleAzSC, err := NewTierAzure("simple-az", "accessKey", "secretKey", "testbucket")
 	if err != nil {
-		log.Fatalln(err, "Failed to create azure backed storage-class")
+		log.Fatalln(err, "Failed to create azure backed tier")
 	}
 	fmt.Println(simpleAzSC)
 
-	fullyCustomAzSC, err := NewTransitionStorageClassAzure("custom-az", "accessKey", "secretKey", "testbucket", AzureEndpoint("http://blob.core.windows.net"), AzurePrefix("testprefix"))
+	fullyCustomAzSC, err := NewTierAzure("custom-az", "accessKey", "secretKey", "testbucket", AzureEndpoint("http://blob.core.windows.net"), AzurePrefix("testprefix"))
 	if err != nil {
-		log.Fatalln(err, "Failed to create azure backed storage-class")
+		log.Fatalln(err, "Failed to create azure backed tier")
 	}
 	fmt.Println(fullyCustomAzSC)
 }
 
-func ExampleTransitionStorageClassGCS() {
+func ExampleTransitionTierGCS() {
 	credsJSON := []byte("credentials json content goes here")
-	simpleGCSSC, err := NewTransitionStorageClassGCS("simple-gcs", credsJSON, "testbucket")
+	simpleGCSSC, err := NewTierGCS("simple-gcs", credsJSON, "testbucket")
 	if err != nil {
-		log.Fatalln(err, "Failed to create GCS backed storage-class")
+		log.Fatalln(err, "Failed to create GCS backed tier")
 	}
 	fmt.Println(simpleGCSSC)
 
-	fullyCustomGCSSC, err := NewTransitionStorageClassGCS("custom-gcs", credsJSON, "testbucket", GCSPrefix("testprefix"))
+	fullyCustomGCSSC, err := NewTierGCS("custom-gcs", credsJSON, "testbucket", GCSPrefix("testprefix"))
 	if err != nil {
-		log.Fatalln(err, "Failed to create GCS backed storage-class")
+		log.Fatalln(err, "Failed to create GCS backed tier")
 	}
 	fmt.Println(fullyCustomGCSSC)
 }
 
-// TestS3StorageClass tests S3Options helpers
-func TestS3StorageClass(t *testing.T) {
+// TestS3Tier tests S3Options helpers
+func TestS3Tier(t *testing.T) {
 	scName := "test-s3"
 	endpoint := "https://mys3.com"
 	accessKey, secretKey := "accessKey", "secretKey"
 	bucket, prefix := "testbucket", "testprefix"
 	region := "us-west-1"
 	storageClass := "S3_IA"
-	want := &TransitionStorageClassS3{
+	want := &TierS3{
 		Name:      scName,
 		AccessKey: accessKey,
 		SecretKey: secretKey,
@@ -94,9 +94,9 @@ func TestS3StorageClass(t *testing.T) {
 		S3Region(region),
 		S3StorageClass(storageClass),
 	}
-	got, err := NewTransitionStorageClassS3(scName, accessKey, secretKey, bucket, options...)
+	got, err := NewTierS3(scName, accessKey, secretKey, bucket, options...)
 	if err != nil {
-		t.Fatalf("Failed to create a custom s3 transition storage class %s", err)
+		t.Fatalf("Failed to create a custom s3 tier %s", err)
 	}
 
 	if *got != *want {
@@ -104,14 +104,14 @@ func TestS3StorageClass(t *testing.T) {
 	}
 }
 
-// TestAzStorageClass tests AzureOptions helpers
-func TestAzStorageClass(t *testing.T) {
+// TestAzTier tests AzureOptions helpers
+func TestAzTier(t *testing.T) {
 	scName := "test-az"
 	endpoint := "https://myazure.com"
 	accessKey, secretKey := "accessKey", "secretKey"
 	bucket, prefix := "testbucket", "testprefix"
 	region := "us-east-1"
-	want := &TransitionStorageClassAzure{
+	want := &TierAzure{
 		Name:      scName,
 		AccessKey: accessKey,
 		SecretKey: secretKey,
@@ -127,9 +127,9 @@ func TestAzStorageClass(t *testing.T) {
 		AzurePrefix(prefix),
 		AzureRegion(region),
 	}
-	got, err := NewTransitionStorageClassAzure(scName, accessKey, secretKey, bucket, options...)
+	got, err := NewTierAzure(scName, accessKey, secretKey, bucket, options...)
 	if err != nil {
-		t.Fatalf("Failed to create a custom azure transition storage class %s", err)
+		t.Fatalf("Failed to create a custom azure tier %s", err)
 	}
 
 	if *got != *want {
@@ -144,13 +144,13 @@ func TestGCSStorageClass(t *testing.T) {
 	encodedCreds := base64.URLEncoding.EncodeToString(credsJSON)
 	bucket, prefix := "testbucket", "testprefix"
 	region := "us-west-2"
-	want := &TransitionStorageClassGCS{
+	want := &TierGCS{
 		Name:   scName,
 		Bucket: bucket,
 		Creds:  encodedCreds,
 
 		// custom values
-		endpoint: "https://storage.googleapis.com/storage/v1/",
+		Endpoint: "https://storage.googleapis.com/storage/v1/",
 		Prefix:   prefix,
 		Region:   region,
 	}
@@ -158,9 +158,9 @@ func TestGCSStorageClass(t *testing.T) {
 		GCSRegion(region),
 		GCSPrefix(prefix),
 	}
-	got, err := NewTransitionStorageClassGCS(scName, credsJSON, bucket, options...)
+	got, err := NewTierGCS(scName, credsJSON, bucket, options...)
 	if err != nil {
-		t.Fatalf("Failed to create a custom gcs transition storage class %s", err)
+		t.Fatalf("Failed to create a custom gcs tier %s", err)
 	}
 
 	if *got != *want {

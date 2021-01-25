@@ -23,17 +23,17 @@ import (
 	"log"
 )
 
-type StorageClassType int
+type TierType int
 
 const (
-	Unsupported StorageClassType = iota
+	Unsupported TierType = iota
 	S3
 	Azure
 	GCS
 )
 
-func (st StorageClassType) String() string {
-	switch st {
+func (tt TierType) String() string {
+	switch tt {
 	case S3:
 		return "s3"
 	case Azure:
@@ -44,12 +44,27 @@ func (st StorageClassType) String() string {
 	return "unsupported"
 }
 
-func (st StorageClassType) MarshalJSON() ([]byte, error) {
-	typ := st.String()
+func (tt TierType) MarshalJSON() ([]byte, error) {
+	typ := tt.String()
 	return json.Marshal(typ)
 }
 
-func NewStorageClassType(scType string) (StorageClassType, error) {
+func (tt *TierType) UnmarshalJSON(data []byte) error {
+	var s string
+	err := json.Unmarshal(data, &s)
+	if err != nil {
+		return err
+	}
+
+	newtt, err := NewTierType(s)
+	if err != nil {
+		return err
+	}
+	*tt = newtt
+	return nil
+}
+
+func NewTierType(scType string) (TierType, error) {
 	switch scType {
 	case S3.String():
 		return S3, nil
@@ -59,17 +74,17 @@ func NewStorageClassType(scType string) (StorageClassType, error) {
 		return GCS, nil
 	}
 
-	return Unsupported, errors.New("Unsupported storage class type")
+	return Unsupported, errors.New("Unsupported tier type")
 }
 
-type TransitionStorageClassConfig struct {
-	Type  StorageClassType
-	S3    *TransitionStorageClassS3
-	Azure *TransitionStorageClassAzure
-	GCS   *TransitionStorageClassGCS
+type TierConfig struct {
+	Type  TierType
+	S3    *TierS3
+	Azure *TierAzure
+	GCS   *TierGCS
 }
 
-func (cfg *TransitionStorageClassConfig) Endpoint() string {
+func (cfg *TierConfig) Endpoint() string {
 	switch cfg.Type {
 	case S3:
 		return cfg.S3.Endpoint
@@ -78,11 +93,11 @@ func (cfg *TransitionStorageClassConfig) Endpoint() string {
 	case GCS:
 		return cfg.GCS.Endpoint
 	}
-	log.Printf("unexpected transition storage-class type %s", cfg.Type)
+	log.Printf("unexpected tier type %s", cfg.Type)
 	return ""
 }
 
-func (cfg *TransitionStorageClassConfig) Bucket() string {
+func (cfg *TierConfig) Bucket() string {
 	switch cfg.Type {
 	case S3:
 		return cfg.S3.Bucket
@@ -91,11 +106,11 @@ func (cfg *TransitionStorageClassConfig) Bucket() string {
 	case GCS:
 		return cfg.GCS.Bucket
 	}
-	log.Printf("unexpected transition storage-class type %s", cfg.Type)
+	log.Printf("unexpected tier type %s", cfg.Type)
 	return ""
 }
 
-func (cfg *TransitionStorageClassConfig) Prefix() string {
+func (cfg *TierConfig) Prefix() string {
 	switch cfg.Type {
 	case S3:
 		return cfg.S3.Prefix
@@ -104,11 +119,11 @@ func (cfg *TransitionStorageClassConfig) Prefix() string {
 	case GCS:
 		return cfg.GCS.Prefix
 	}
-	log.Printf("unexpected transition storage-class type %s", cfg.Type)
+	log.Printf("unexpected tier type %s", cfg.Type)
 	return ""
 }
 
-func (cfg *TransitionStorageClassConfig) Region() string {
+func (cfg *TierConfig) Region() string {
 	switch cfg.Type {
 	case S3:
 		return cfg.S3.Region
@@ -117,11 +132,11 @@ func (cfg *TransitionStorageClassConfig) Region() string {
 	case GCS:
 		return cfg.GCS.Region
 	}
-	log.Printf("unexpected transition storage-class type %s", cfg.Type)
+	log.Printf("unexpected tier type %s", cfg.Type)
 	return ""
 }
 
-func (cfg *TransitionStorageClassConfig) Name() string {
+func (cfg *TierConfig) Name() string {
 	switch cfg.Type {
 	case S3:
 		return cfg.S3.Name
@@ -130,6 +145,6 @@ func (cfg *TransitionStorageClassConfig) Name() string {
 	case GCS:
 		return cfg.GCS.Name
 	}
-	log.Printf("unexpected transition storage-class type %s", cfg.Type)
+	log.Printf("unexpected tier type %s", cfg.Type)
 	return ""
 }
