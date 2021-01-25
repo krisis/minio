@@ -18,6 +18,7 @@
 package madmin
 
 import (
+	"encoding/json"
 	"errors"
 	"log"
 )
@@ -41,6 +42,11 @@ func (st StorageClassType) String() string {
 		return "gcs"
 	}
 	return "unsupported"
+}
+
+func (st StorageClassType) MarshalJSON() ([]byte, error) {
+	typ := st.String()
+	return json.Marshal(typ)
 }
 
 func NewStorageClassType(scType string) (StorageClassType, error) {
