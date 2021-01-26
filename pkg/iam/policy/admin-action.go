@@ -117,14 +117,14 @@ const (
 	// GetBucketTargetAction - allow getting bucket targets
 	GetBucketTargetAction = "admin:GetBucketTarget"
 
-	// Transition Storage-Class admin Actions
+	// Remote Tier admin Actions
 
-	// SetStorageClassAction - allow adding/editing transition storage-classes
-	SetStorageClassAction = "admin:SetStorageClass"
-	// RemoveStorageClassAction - allow removing transition storage-classes
-	RemoveStorageClassAction = "admin:RemoveStorageClass"
-	// ListStorageClassAction - allow listing transition storage-classes
-	ListStorageClassAction = "admin:ListStorageClass"
+	// SetTierAction - allow adding/editing a remote tier
+	SetTierAction = "admin:SetTier"
+	// RemoveTierAction - allow removing a remote tier
+	RemoveTierAction = "admin:RemoveTier"
+	// ListTierAction - allow listing remote tiers
+	ListTierAction = "admin:ListTier"
 
 	// AllAdminActions - provides all admin permissions
 	AllAdminActions = "admin:*"
@@ -168,9 +168,9 @@ var supportedAdminActions = map[AdminAction]struct{}{
 	GetBucketQuotaAdminAction:      {},
 	SetBucketTargetAction:          {},
 	GetBucketTargetAction:          {},
-	SetStorageClassAction:          {},
-	RemoveStorageClassAction:       {},
-	ListStorageClassAction:         {},
+	SetTierAction:                  {},
+	RemoveTierAction:               {},
+	ListTierAction:                 {},
 	AllAdminActions:                {},
 }
 
@@ -218,7 +218,7 @@ var adminActionConditionKeyMap = map[Action]condition.KeySet{
 	GetBucketQuotaAdminAction:      condition.NewKeySet(condition.AllSupportedAdminKeys...),
 	SetBucketTargetAction:          condition.NewKeySet(condition.AllSupportedAdminKeys...),
 	GetBucketTargetAction:          condition.NewKeySet(condition.AllSupportedAdminKeys...),
-	SetStorageClassAction:          condition.NewKeySet(condition.AllSupportedAdminKeys...),
-	RemoveStorageClassAction:       condition.NewKeySet(condition.AllSupportedAdminKeys...),
-	ListStorageClassAction:         condition.NewKeySet(condition.AllSupportedAdminKeys...),
+	SetTierAction:                  condition.NewKeySet(condition.AllSupportedAdminKeys...),
+	RemoveTierAction:               condition.NewKeySet(condition.AllSupportedAdminKeys...),
+	ListTierAction:                 condition.NewKeySet(condition.AllSupportedAdminKeys...),
 }

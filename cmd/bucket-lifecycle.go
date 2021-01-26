@@ -148,7 +148,7 @@ func validateLifecycleTransition(ctx context.Context, bucket string, lfc *lifecy
 // validateTransitionDestination returns error if transition destination bucket missing or not configured
 // It also returns true if transition destination is same as this server.
 func validateTransitionDestination(sc string) error {
-	client, err := globalTransitionStorageClassConfigMgr.GetDriver(sc)
+	client, err := globalTierConfigMgr.GetDriver(sc)
 	if err != nil {
 		return err
 	}
@@ -179,7 +179,7 @@ func deleteTransitionedObject(ctx context.Context, objectAPI ObjectLayer, bucket
 	}
 
 	sc := getLifeCycleTransitionStorageClass(ctx, lc, bucket, lcOpts)
-	tgtClient, err := globalTransitionStorageClassConfigMgr.GetDriver(sc)
+	tgtClient, err := globalTierConfigMgr.GetDriver(sc)
 	if err != nil {
 		return err
 	}
@@ -196,7 +196,7 @@ func deleteTransitionedObject(ctx context.Context, objectAPI ObjectLayer, bucket
 		_, err = objectAPI.DeleteObject(ctx, bucket, object, opts)
 		return err
 	case lifecycle.DeleteAction, lifecycle.DeleteVersionAction:
-		// When an object is past expiry, delete the data from transitioned tier and
+		// When an objectglobalTierConfigMgr transitioned tier and
 		// metadata from source
 		if err := tgtClient.Remove(GlobalContext, tgtObjName); err != nil {
 			//		if err := tgtClient.RemoveObject(context.Background(), tgt.TargetBucket, tgtObjName, miniogo.RemoveObjectOptions{}); err != nil {
@@ -281,7 +281,7 @@ func getLifeCycleTransitionStorageClass(ctx context.Context, lc *lifecycle.Lifec
 
 // getTransitionedObjectReader returns a reader from the transitioned tier.
 func getTransitionedObjectReader(ctx context.Context, bucket, object string, rs *HTTPRangeSpec, h http.Header, oi ObjectInfo, opts ObjectOptions) (gr *GetObjectReader, err error) {
-	tgtClient, err := globalTransitionStorageClassConfigMgr.GetDriver(oi.TransitionStorageClass)
+	tgtClient, err := globalTierConfigMgr.GetDriver(oi.TransitionStorageClass)
 	if err != nil {
 		return nil, fmt.Errorf("transition storage class not configured")
 	}
@@ -299,7 +299,6 @@ func getTransitionedObjectReader(ctx context.Context, bucket, object string, rs 
 	//	reader, err := tgtClient.GetObject(ctx, tgtClient.Bucket, oi.transitionedObjName, gopts)
 	// TODO:needs options for range..
 	reader, err := tgtClient.Get(ctx, oi.transitionedObjName, gopts)
-
 	if err != nil {
 		return nil, err
 	}

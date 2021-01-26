@@ -26,7 +26,7 @@ import (
 	"strings"
 )
 
-const TierAPI = "transition-storage-class"
+const TierAPI = "tier"
 
 func (adm *AdminClient) AddTier(ctx context.Context, cfg TierConfig) error {
 	data, err := json.Marshal(cfg)
@@ -48,8 +48,7 @@ func (adm *AdminClient) AddTier(ctx context.Context, cfg TierConfig) error {
 		content:     encData,
 	}
 
-	// Execute PUT on /minio/admin/v3/transition-storage-class to add a
-	// transition storage-class.
+	// Execute PUT on /minio/admin/v3/tier to add a remote tier
 	resp, err := adm.executeMethod(ctx, http.MethodPut, reqData)
 	defer closeResponse(resp)
 	if err != nil {
@@ -67,8 +66,8 @@ func (adm *AdminClient) ListTiers(ctx context.Context) ([]TierConfig, error) {
 		relPath: strings.Join([]string{adminAPIPrefix, TierAPI}, "/"),
 	}
 
-	// Execute GET on /minio/admin/v3/transition-storage-class to list
-	// transition storage-classes configured.
+	// Execute GET on /minio/admin/v3/tier to list
+	// remote tiers configured.
 	resp, err := adm.executeMethod(ctx, http.MethodGet, reqData)
 	defer closeResponse(resp)
 	if err != nil {
@@ -79,18 +78,18 @@ func (adm *AdminClient) ListTiers(ctx context.Context) ([]TierConfig, error) {
 		return nil, httpRespToErrorResponse(resp)
 	}
 
-	var storageClasses []TierConfig
+	var tiers []TierConfig
 	b, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return storageClasses, err
+		return tiers, err
 	}
 
-	err = json.Unmarshal(b, &storageClasses)
+	err = json.Unmarshal(b, &tiers)
 	if err != nil {
-		return storageClasses, err
+		return tiers, err
 	}
 
-	return storageClasses, nil
+	return tiers, nil
 }
 
 type TierCreds struct {
@@ -111,8 +110,7 @@ func (adm *AdminClient) EditTier(ctx context.Context, scName string, creds TierC
 		content: encData,
 	}
 
-	// Execute POST on /minio/admin/v3/transition-storage-class/storageClassName" to edit
-	// transition storage-classes configured.
+	// Execute POST on /minio/admin/v3/tier/tierName" to edit a tier configured.
 	resp, err := adm.executeMethod(ctx, http.MethodPost, reqData)
 	defer closeResponse(resp)
 	if err != nil {

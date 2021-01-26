@@ -284,7 +284,7 @@ var (
 
 	globalDNSCache *xhttp.DNSCache
 
-	globalTransitionStorageClassConfigMgr *TransitionStorageClassConfigMgr
+	globalTierConfigMgr *TierConfigMgr
 	// Add new variable global values here.
 )
 
