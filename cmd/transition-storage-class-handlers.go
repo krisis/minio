@@ -12,16 +12,16 @@ import (
 )
 
 var (
-	// error returned when transition storage-class already exists
-	errTransitionStorageClassAlreadyExists = AdminError{
-		Code:       "XMinioAdminStorageClassAlreadyExists",
-		Message:    "Specified transition storage-class already exists",
+	// error returned when remote tier already exists
+	errTierAlreadyExists = AdminError{
+		Code:       "XMinioAdminTierAlreadyExists",
+		Message:    "Specified remote tier already exists",
 		StatusCode: http.StatusConflict,
 	}
-	// error returned when transition storage-class is not found
-	errTransitionStorageClassNotFound = AdminError{
-		Code:       "XMinioAdminStorageClassNotFound",
-		Message:    "Specified transition storage-class was not found",
+	// error returned when remote tier is not found
+	errTierNotFound = AdminError{
+		Code:       "XMinioAdminTierNotFound",
+		Message:    "Specified remote tier was not found",
 		StatusCode: http.StatusNotFound,
 	}
 )
@@ -44,7 +44,7 @@ func (api adminAPIHandlers) AddStorageClassHandler(w http.ResponseWriter, r *htt
 		return
 	}
 
-	var cfg madmin.TransitionStorageClassConfig
+	var cfg madmin.TierConfig
 	if err := json.Unmarshal(reqBytes, &cfg); err != nil {
 		writeErrorResponseJSON(ctx, w, toAdminAPIErr(ctx, err), r.URL)
 		return
@@ -132,7 +132,7 @@ func (api adminAPIHandlers) EditStorageClassHandler(w http.ResponseWriter, r *ht
 		return
 	}
 
-	var creds madmin.StorageClassCreds
+	var creds madmin.TierCreds
 	if err := json.Unmarshal(reqBytes, &creds); err != nil {
 		writeErrorResponseJSON(ctx, w, toAdminAPIErr(ctx, err), r.URL)
 		return

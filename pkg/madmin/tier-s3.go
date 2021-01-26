@@ -17,7 +17,7 @@
 
 package madmin
 
-type TransitionStorageClassAzure struct {
+type TierS3 struct {
 	Name         string
 	Endpoint     string
 	AccessKey    string
@@ -28,55 +28,54 @@ type TransitionStorageClassAzure struct {
 	StorageClass string
 }
 
-type AzureOptions func(*TransitionStorageClassAzure) error
+type S3Options func(*TierS3) error
 
-func AzurePrefix(prefix string) func(az *TransitionStorageClassAzure) error {
-	return func(az *TransitionStorageClassAzure) error {
-		az.Prefix = prefix
+func S3Region(region string) func(s3 *TierS3) error {
+	return func(s3 *TierS3) error {
+		s3.Region = region
 		return nil
 	}
 }
 
-func AzureEndpoint(endpoint string) func(az *TransitionStorageClassAzure) error {
-	return func(az *TransitionStorageClassAzure) error {
-		az.Endpoint = endpoint
+func S3Prefix(prefix string) func(s3 *TierS3) error {
+	return func(s3 *TierS3) error {
+		s3.Prefix = prefix
 		return nil
 	}
 }
 
-func AzureRegion(region string) func(az *TransitionStorageClassAzure) error {
-	return func(az *TransitionStorageClassAzure) error {
-		az.Region = region
+func S3Endpoint(endpoint string) func(s3 *TierS3) error {
+	return func(s3 *TierS3) error {
+		s3.Endpoint = endpoint
 		return nil
 	}
 }
 
-func AzureStorageClass(sc string) func(az *TransitionStorageClassAzure) error {
-	return func(az *TransitionStorageClassAzure) error {
-		az.StorageClass = sc
+func S3StorageClass(storageClass string) func(s3 *TierS3) error {
+	return func(s3 *TierS3) error {
+		s3.StorageClass = storageClass
 		return nil
 	}
 }
 
-func NewTransitionStorageClassAzure(name, accessKey, secretKey, bucket string, options ...AzureOptions) (*TransitionStorageClassAzure, error) {
-	az := &TransitionStorageClassAzure{
+func NewTierS3(name, accessKey, secretKey, bucket string, options ...S3Options) (*TierS3, error) {
+	sc := &TierS3{
 		Name:      name,
 		AccessKey: accessKey,
 		SecretKey: secretKey,
 		Bucket:    bucket,
 		// Defaults
-		Endpoint:     "http://blob.core.windows.net",
-		Prefix:       "",
+		Endpoint:     "https://s3.amazonaws.com",
 		Region:       "",
 		StorageClass: "",
 	}
 
 	for _, option := range options {
-		err := option(az)
+		err := option(sc)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return az, nil
+	return sc, nil
 }

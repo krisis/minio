@@ -68,7 +68,7 @@ func (az *warmBackendAzure) Remove(ctx context.Context, object string) error {
 	return azureToObjectError(err, az.Bucket, object)
 }
 
-func newWarmBackendAzure(conf madmin.TransitionStorageClassAzure) (*warmBackendAzure, error) {
+func newWarmBackendAzure(conf madmin.TierAzure) (*warmBackendAzure, error) {
 	credential, err := azblob.NewSharedKeyCredential(conf.AccessKey, conf.SecretKey)
 	if err != nil {
 		if _, ok := err.(base64.CorruptInputError); ok {
