@@ -29,9 +29,9 @@ import (
 	"github.com/minio/minio/pkg/madmin"
 )
 
-var transitionStorageClassConfigPath string = path.Join(minioConfigPrefix, "transition-storage-class-config.json")
+var TierConfigPath string = path.Join(minioConfigPrefix, "tier-config.json")
 
-type TransitionStorageClassConfigMgr struct {
+type TierConfigMgr struct {
 	sync.RWMutex
 	drivercache map[string]warmBackend
 	S3          map[string]madmin.TierS3    `json:"s3"`
@@ -39,21 +39,21 @@ type TransitionStorageClassConfigMgr struct {
 	GCS         map[string]madmin.TierGCS   `json:"gcs"`
 }
 
-func (config *TransitionStorageClassConfigMgr) isStorageClassNameInUse(scName string) (madmin.TierType, bool) {
+func (config *TierConfigMgr) isTierNameInUse(tierName string) (madmin.TierType, bool) {
 	for name := range config.S3 {
-		if scName == name {
+		if tierName == name {
 			return madmin.S3, true
 		}
 	}
 
 	for name := range config.Azure {
-		if scName == name {
+		if tierName == name {
 			return madmin.Azure, true
 		}
 	}
 
 	for name := range config.GCS {
-		if scName == name {
+		if tierName == name {
 			return madmin.GCS, true
 		}
 	}
@@ -61,72 +61,72 @@ func (config *TransitionStorageClassConfigMgr) isStorageClassNameInUse(scName st
 	return madmin.Unsupported, false
 }
 
-func (config *TransitionStorageClassConfigMgr) Add(sc madmin.TierConfig) error {
+func (config *TierConfigMgr) Add(sc madmin.TierConfig) error {
 	config.Lock()
 	defer config.Unlock()
 
-	scName := sc.Name()
+	tierName := sc.Name()
 	// storage-class name already in use
-	if _, exists := config.isStorageClassNameInUse(scName); exists {
+	if _, exists := config.isTierNameInUse(tierName); exists {
 		return errTierAlreadyExists
 	}
 
 	switch sc.Type {
 	case madmin.S3:
-		config.S3[scName] = *sc.S3
+		config.S3[tierName] = *sc.S3
 
 	case madmin.Azure:
-		config.Azure[scName] = *sc.Azure
+		config.Azure[tierName] = *sc.Azure
 
 	case madmin.GCS:
-		config.GCS[scName] = *sc.GCS
+		config.GCS[tierName] = *sc.GCS
 
 	default:
-		return errors.New("Unsupported transition storage-class type")
+		return errors.New("Unsupported tier type")
 	}
 
 	return nil
 }
 
-func (config *TransitionStorageClassConfigMgr) ListStorageClasses() []madmin.TierConfig {
+func (config *TierConfigMgr) ListTiers() []madmin.TierConfig {
 	config.RLock()
 	defer config.RUnlock()
 
-	var storageClasses []madmin.TierConfig
-	for _, cls := range config.S3 {
-		// This makes a local copy of storage-class config before
+	var configs []madmin.TierConfig
+	for _, t := range config.S3 {
+		// This makes a local copy of tier config before
 		// passing a reference to it.
-		storageClass := cls
-		storageClasses = append(storageClasses, madmin.TierConfig{
+		cfg := t
+		configs = append(configs, madmin.TierConfig{
 			Type: madmin.S3,
-			S3:   &storageClass,
+			S3:   &cfg,
 		})
 	}
 
-	for _, cls := range config.Azure {
-		// This makes a local copy of storage-class config before
+	for _, t := range config.Azure {
+		// This makes a local copy of tier config before
 		// passing a reference to it.
-		storageClass := cls
-		storageClasses = append(storageClasses, madmin.TierConfig{
+		cfg := t
+		configs = append(configs, madmin.TierConfig{
 			Type:  madmin.Azure,
-			Azure: &storageClass,
+			Azure: &cfg,
 		})
 	}
 
-	for _, cls := range config.GCS {
-		// This makes a local copy of storage-class config before
+	for _, t := range config.GCS {
+		// This makes a local copy of tier config before
 		// passing a reference to it.
-		storageClass := cls
-		storageClasses = append(storageClasses, madmin.TierConfig{
+		cfg := t
+		configs = append(configs, madmin.TierConfig{
 			Type: madmin.GCS,
-			GCS:  &storageClass,
+			GCS:  &cfg,
 		})
 	}
 
-	return storageClasses
+	return configs
 }
 
-func (config *TransitionStorageClassConfigMgr) Edit(scName string, creds madmin.TierCreds) error {
+func (config *TierConfigMgr) Edit(tierName string, creds madmin.TierCreds) error {
 	config.Lock()
 	defer config.Unlock()
 
@@ -135,33 +135,33 @@ func (config *TransitionStorageClassConfigMgr) Edit(scName string, creds madmin.
 		scType madmin.TierType
 		exists bool
 	)
-	if scType, exists = config.isStorageClassNameInUse(scName); !exists {
+	if scType, exists = config.isTierNameInUse(tierName); !exists {
 		return errTierNotFound
 	}
 
 	switch scType {
 	case madmin.S3:
-		sc := config.S3[scName]
+		sc := config.S3[tierName]
 		sc.AccessKey = creds.AccessKey
 		sc.SecretKey = creds.SecretKey
-		config.S3[scName] = sc
+		config.S3[tierName] = sc
 
 	case madmin.Azure:
-		sc := config.Azure[scName]
+		sc := config.Azure[tierName]
 		sc.AccessKey = creds.AccessKey
 		sc.SecretKey = creds.SecretKey
-		config.Azure[scName] = sc
+		config.Azure[tierName] = sc
 
 	case madmin.GCS:
-		sc := config.GCS[scName]
+		sc := config.GCS[tierName]
 		sc.Creds = base64.URLEncoding.EncodeToString(creds.CredsJSON)
-		config.GCS[scName] = sc
+		config.GCS[tierName] = sc
 	}
 
 	return nil
 }
 
-func (config *TransitionStorageClassConfigMgr) RemoveStorageClass(name string) {
+func (config *TierConfigMgr) RemoveTier(name string) {
 	config.Lock()
 	defer config.Unlock()
 
@@ -172,13 +172,13 @@ func (config *TransitionStorageClassConfigMgr) RemoveStorageClass(name string) {
 	delete(config.GCS, name)
 }
 
-func (config *TransitionStorageClassConfigMgr) Bytes() ([]byte, error) {
+func (config *TierConfigMgr) Bytes() ([]byte, error) {
 	config.Lock()
 	defer config.Unlock()
 	return json.Marshal(config)
 }
 
-func (config *TransitionStorageClassConfigMgr) GetDriver(sc string) (d warmBackend, err error) {
+func (config *TierConfigMgr) GetDriver(sc string) (d warmBackend, err error) {
 	config.Lock()
 	defer config.Unlock()
 
@@ -211,8 +211,8 @@ func (config *TransitionStorageClassConfigMgr) GetDriver(sc string) (d warmBacke
 	return nil, errInvalidArgument
 }
 
-func saveGlobalTransitionStorageClassConfig() error {
-	b, err := globalTransitionStorageClassConfigMgr.Bytes()
+func saveGlobalTierConfig() error {
+	b, err := globalTierConfigMgr.Bytes()
 	if err != nil {
 		return err
 	}
@@ -220,16 +220,16 @@ func saveGlobalTransitionStorageClassConfig() error {
 	if err != nil {
 		return err
 	}
-	_, err = globalObjectAPI.PutObject(context.Background(), minioMetaBucket, transitionStorageClassConfigPath, NewPutObjReader(r, nil, nil), ObjectOptions{})
+	_, err = globalObjectAPI.PutObject(context.Background(), minioMetaBucket, TierConfigPath, NewPutObjReader(r, nil, nil), ObjectOptions{})
 	return err
 }
 
 func loadGlobalTransitionStorageClassConfig() error {
 	var buf bytes.Buffer
-	err := globalObjectAPI.GetObject(context.Background(), minioMetaBucket, transitionStorageClassConfigPath, 0, -1, &buf, "", ObjectOptions{})
+	err := globalObjectAPI.GetObject(context.Background(), minioMetaBucket, TierConfigPath, 0, -1, &buf, "", ObjectOptions{})
 	if err != nil {
 		if isErrObjectNotFound(err) {
-			globalTransitionStorageClassConfigMgr = &TransitionStorageClassConfigMgr{
+			globalTierConfigMgr = &TierConfigMgr{
 				RWMutex:     sync.RWMutex{},
 				drivercache: make(map[string]warmBackend),
 				S3:          make(map[string]madmin.TierS3),
@@ -239,7 +239,7 @@ func loadGlobalTransitionStorageClassConfig() error {
 		}
 		return err
 	}
-	var config TransitionStorageClassConfigMgr
+	var config TierConfigMgr
 	err = json.Unmarshal(buf.Bytes(), &config)
 	if err != nil {
 		return err
@@ -257,6 +257,6 @@ func loadGlobalTransitionStorageClassConfig() error {
 		config.GCS = make(map[string]madmin.TierGCS)
 	}
 
-	globalTransitionStorageClassConfigMgr = &config
+	globalTierConfigMgr = &config
 	return nil
 }

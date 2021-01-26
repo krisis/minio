@@ -26,13 +26,13 @@ var (
 	}
 )
 
-func (api adminAPIHandlers) AddStorageClassHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := newContext(r, w, "AddStorageClass")
+func (api adminAPIHandlers) AddTierHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := newContext(r, w, "AddTier")
 
-	defer logger.AuditLog(w, r, "AddStorageClass", mustGetClaimsFromToken(r))
+	defer logger.AuditLog(w, r, "AddTier", mustGetClaimsFromToken(r))
 
-	objectAPI, cred := validateAdminUsersReq(ctx, w, r, iampolicy.SetStorageClassAction)
-	if objectAPI == nil || globalNotificationSys == nil || globalTransitionStorageClassConfigMgr == nil {
+	objectAPI, cred := validateAdminUsersReq(ctx, w, r, iampolicy.SetTierAction)
+	if objectAPI == nil || globalNotificationSys == nil || globalTierConfigMgr == nil {
 		writeErrorResponseJSON(ctx, w, errorCodes.ToAPIErr(ErrServerNotInitialized), r.URL)
 		return
 	}
@@ -50,13 +50,13 @@ func (api adminAPIHandlers) AddStorageClassHandler(w http.ResponseWriter, r *htt
 		return
 	}
 
-	err = globalTransitionStorageClassConfigMgr.Add(cfg)
+	err = globalTierConfigMgr.Add(cfg)
 	if err != nil {
 		writeErrorResponseJSON(ctx, w, toAdminAPIErr(ctx, err), r.URL)
 		return
 	}
 
-	err = saveGlobalTransitionStorageClassConfig()
+	err = saveGlobalTierConfig()
 	if err != nil {
 		writeErrorResponseJSON(ctx, w, toAdminAPIErr(ctx, err), r.URL)
 		return
@@ -66,22 +66,22 @@ func (api adminAPIHandlers) AddStorageClassHandler(w http.ResponseWriter, r *htt
 	writeSuccessNoContent(w)
 }
 
-func (api adminAPIHandlers) RemoveStorageClassHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := newContext(r, w, "RemoveStorageClass")
+func (api adminAPIHandlers) RemoveTierHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := newContext(r, w, "RemoveTier")
 
-	defer logger.AuditLog(w, r, "RemoveStorageClass", mustGetClaimsFromToken(r))
+	defer logger.AuditLog(w, r, "RemoveTier", mustGetClaimsFromToken(r))
 
-	objectAPI, _ := validateAdminUsersReq(ctx, w, r, iampolicy.RemoveStorageClassAction)
-	if objectAPI == nil || globalNotificationSys == nil || globalTransitionStorageClassConfigMgr == nil {
+	objectAPI, _ := validateAdminUsersReq(ctx, w, r, iampolicy.RemoveTierAction)
+	if objectAPI == nil || globalNotificationSys == nil || globalTierConfigMgr == nil {
 		writeErrorResponseJSON(ctx, w, errorCodes.ToAPIErr(ErrServerNotInitialized), r.URL)
 		return
 	}
 
 	var vars = mux.Vars(r)
-	scName := vars["storageclass"]
+	scName := vars["tier"]
 
-	globalTransitionStorageClassConfigMgr.RemoveStorageClass(scName)
-	err := saveGlobalTransitionStorageClassConfig()
+	globalTierConfigMgr.RemoveTier(scName)
+	err := saveGlobalTierConfig()
 	if err != nil {
 		writeErrorResponseJSON(ctx, w, toAdminAPIErr(ctx, err), r.URL)
 		return
@@ -91,19 +91,19 @@ func (api adminAPIHandlers) RemoveStorageClassHandler(w http.ResponseWriter, r *
 	writeSuccessNoContent(w)
 }
 
-func (api adminAPIHandlers) ListStorageClassHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := newContext(r, w, "ListStorageClass")
+func (api adminAPIHandlers) ListTierHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := newContext(r, w, "ListTier")
 
-	defer logger.AuditLog(w, r, "ListStorageClass", mustGetClaimsFromToken(r))
+	defer logger.AuditLog(w, r, "ListTier", mustGetClaimsFromToken(r))
 
-	objectAPI, _ := validateAdminUsersReq(ctx, w, r, iampolicy.ListStorageClassAction)
-	if objectAPI == nil || globalNotificationSys == nil || globalTransitionStorageClassConfigMgr == nil {
+	objectAPI, _ := validateAdminUsersReq(ctx, w, r, iampolicy.ListTierAction)
+	if objectAPI == nil || globalNotificationSys == nil || globalTierConfigMgr == nil {
 		writeErrorResponseJSON(ctx, w, errorCodes.ToAPIErr(ErrServerNotInitialized), r.URL)
 		return
 	}
 
-	storageClasses := globalTransitionStorageClassConfigMgr.ListStorageClasses()
-	data, err := json.Marshal(storageClasses)
+	tiers := globalTierConfigMgr.ListTiers()
+	data, err := json.Marshal(tiers)
 	if err != nil {
 		writeErrorResponseJSON(ctx, w, toAdminAPIErr(ctx, err), r.URL)
 		return
@@ -112,18 +112,18 @@ func (api adminAPIHandlers) ListStorageClassHandler(w http.ResponseWriter, r *ht
 	writeSuccessResponseJSON(w, data)
 }
 
-func (api adminAPIHandlers) EditStorageClassHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := newContext(r, w, "EditStorageClass")
+func (api adminAPIHandlers) EditTierHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := newContext(r, w, "EditTier")
 
-	defer logger.AuditLog(w, r, "EditStorageClass", mustGetClaimsFromToken(r))
+	defer logger.AuditLog(w, r, "EditTier", mustGetClaimsFromToken(r))
 
-	objectAPI, cred := validateAdminUsersReq(ctx, w, r, iampolicy.SetStorageClassAction)
-	if objectAPI == nil || globalNotificationSys == nil || globalTransitionStorageClassConfigMgr == nil {
+	objectAPI, cred := validateAdminUsersReq(ctx, w, r, iampolicy.SetTierAction)
+	if objectAPI == nil || globalNotificationSys == nil || globalTierConfigMgr == nil {
 		writeErrorResponseJSON(ctx, w, errorCodes.ToAPIErr(ErrServerNotInitialized), r.URL)
 		return
 	}
 	vars := mux.Vars(r)
-	scName := vars["storageclass"]
+	scName := vars["tier"]
 
 	password := cred.SecretKey
 	reqBytes, err := madmin.DecryptData(password, io.LimitReader(r.Body, r.ContentLength))
@@ -138,12 +138,12 @@ func (api adminAPIHandlers) EditStorageClassHandler(w http.ResponseWriter, r *ht
 		return
 	}
 
-	if err := globalTransitionStorageClassConfigMgr.Edit(scName, creds); err != nil {
+	if err := globalTierConfigMgr.Edit(scName, creds); err != nil {
 		writeErrorResponseJSON(ctx, w, toAdminAPIErr(ctx, err), r.URL)
 		return
 	}
 
-	if err := saveGlobalTransitionStorageClassConfig(); err != nil {
+	if err := saveGlobalTierConfig(); err != nil {
 		writeErrorResponseJSON(ctx, w, toAdminAPIErr(ctx, err), r.URL)
 		return
 	}

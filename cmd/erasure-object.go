@@ -1208,7 +1208,7 @@ func (er erasureObjects) GetObjectTags(ctx context.Context, bucket, object strin
 
 // TransitionObject - transition object content to target tier.
 func (er erasureObjects) TransitionObject(ctx context.Context, bucket, object string, opts ObjectOptions) error {
-	tgtClient, err := globalTransitionStorageClassConfigMgr.GetDriver(opts.Transition.StorageClass)
+	tgtClient, err := globalTierConfigMgr.GetDriver(opts.Transition.StorageClass)
 	if err != nil {
 		return err
 	}
