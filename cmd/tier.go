@@ -236,6 +236,7 @@ func loadGlobalTransitionStorageClassConfig() error {
 				Azure:       make(map[string]madmin.TierAzure),
 				GCS:         make(map[string]madmin.TierGCS),
 			}
+			return nil
 		}
 		return err
 	}
