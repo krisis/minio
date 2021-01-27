@@ -66,8 +66,7 @@ func (adm *AdminClient) ListTiers(ctx context.Context) ([]TierConfig, error) {
 		relPath: strings.Join([]string{adminAPIPrefix, TierAPI}, "/"),
 	}
 
-	// Execute GET on /minio/admin/v3/tier to list
-	// remote tiers configured.
+	// Execute GET on /minio/admin/v3/tier to list remote tiers configured.
 	resp, err := adm.executeMethod(ctx, http.MethodGet, reqData)
 	defer closeResponse(resp)
 	if err != nil {
@@ -98,7 +97,7 @@ type TierCreds struct {
 	CredsJSON []byte `json:"creds,omitempty"`
 }
 
-func (adm *AdminClient) EditTier(ctx context.Context, scName string, creds TierCreds) error {
+func (adm *AdminClient) EditTier(ctx context.Context, tierName string, creds TierCreds) error {
 	data, err := json.Marshal(creds)
 	if err != nil {
 		return err
@@ -106,12 +105,33 @@ func (adm *AdminClient) EditTier(ctx context.Context, scName string, creds TierC
 
 	encData, err := EncryptData(adm.getSecretKey(), data)
 	reqData := requestData{
-		relPath: strings.Join([]string{adminAPIPrefix, TierAPI, scName}, "/"),
+		relPath: strings.Join([]string{adminAPIPrefix, TierAPI, tierName}, "/"),
 		content: encData,
 	}
 
-	// Execute POST on /minio/admin/v3/tier/tierName" to edit a tier configured.
+	// Execute POST on /minio/admin/v3/tier/tierName" to edit a tier
+	// configured.
 	resp, err := adm.executeMethod(ctx, http.MethodPost, reqData)
+	defer closeResponse(resp)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != http.StatusNoContent {
+		return httpRespToErrorResponse(resp)
+	}
+
+	return nil
+}
+
+func (adm *AdminClient) RemoveTier(ctx context.Context, tierName string) error {
+	reqData := requestData{
+		relPath: strings.Join([]string{adminAPIPrefix, TierAPI, tierName}, "/"),
+	}
+
+	// Execute DELETE on /minio/admin/v3/tier/tierName" to remove a tier
+	// configured.
+	resp, err := adm.executeMethod(ctx, http.MethodDelete, reqData)
 	defer closeResponse(resp)
 	if err != nil {
 		return err
