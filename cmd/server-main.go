@@ -235,6 +235,9 @@ func newAllSubsystems() {
 
 	// Create new bucket replication subsytem
 	globalBucketTargetSys = NewBucketTargetSys()
+
+	// Create new ILM tier configuration subsystem
+	globalTierConfigMgr = NewTierConfigMgr()
 }
 
 func configRetriableErrors(err error) bool {
@@ -393,6 +396,13 @@ func initAllSubsystems(ctx context.Context, newObject ObjectLayer) (err error) {
 	// Initialize bucket targets sub-system.
 	globalBucketTargetSys.Init(ctx, buckets, newObject)
 
+	if globalIsErasure {
+		// Initialize transition tier configuration manager
+		err = globalTierConfigMgr.Init(ctx, newObject)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -497,7 +507,6 @@ func serverMain(ctx *cli.Context) {
 	if err != nil {
 		logFatalErrs(err, Endpoint{}, true)
 	}
-
 	logger.SetDeploymentID(globalDeploymentID)
 
 	// Enable background operations for erasure coding
@@ -525,7 +534,12 @@ func serverMain(ctx *cli.Context) {
 
 	if globalIsErasure { // to be done after config init
 		initBackgroundReplication(GlobalContext, newObject)
+		globalTierJournal, err = initTierDeletionJournal(GlobalContext.Done())
+		if err != nil {
+			logger.FatalIf(err, "Unable to initialize remote tier pending deletes journal")
+		}
 	}
+
 	if globalCacheConfig.Enabled {
 		// initialize the new disk cache objects.
 		var cacheAPI CacheObjectLayer

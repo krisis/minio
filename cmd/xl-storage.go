@@ -840,6 +840,18 @@ func (s *xlStorage) DeleteVersion(ctx context.Context, volume, path string, fi F
 		return err
 	}
 
+	// Compute the transition status of the object verion given by
+	// fi.VersionID from xlmeta on disk.
+	var transitionStatus string
+	switch xfi, err := xlMeta.ToFileInfo(volume, path, fi.VersionID); err {
+	case nil:
+		transitionStatus = xfi.TransitionStatus
+
+	case errFileVersionNotFound, errFileNotFound: // Possibly a delete-marker is being added
+	default:
+		return err
+	}
+
 	dataDir, lastVersion, err := xlMeta.DeleteVersion(fi)
 	if err != nil {
 		return err
@@ -849,11 +861,9 @@ func (s *xlStorage) DeleteVersion(ctx context.Context, volume, path string, fi F
 	if err != nil {
 		return err
 	}
-
-	// when data-dir is specified. Transition leverages existing DeleteObject
-	// api call to mark object as deleted. When object is pending transition,
-	// just update the metadata and avoid deleting data dir.
-	if dataDir != "" && fi.TransitionStatus != lifecycle.TransitionPending {
+	// 1. fi.transitionStatus == Complete for expire restore object
+	// 2. look for restore header
+	if dataDir != "" && (transitionStatus != lifecycle.TransitionComplete || fi.ExpireRestored) {
 		filePath := pathJoin(volumeDir, path, dataDir)
 		if err = checkPathLength(filePath); err != nil {
 			return err
@@ -865,9 +875,7 @@ func (s *xlStorage) DeleteVersion(ctx context.Context, volume, path string, fi F
 		}
 	}
 
-	// transitioned objects maintains metadata on the source cluster. When transition
-	// status is set, update the metadata to disk.
-	if !lastVersion || fi.TransitionStatus != "" {
+	if !lastVersion {
 		return s.WriteAll(ctx, volume, pathJoin(path, xlStorageFormatFile), buf)
 	}
 
