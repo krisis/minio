@@ -501,7 +501,6 @@ func serverMain(ctx *cli.Context) {
 	if err != nil {
 		logFatalErrs(err, Endpoint{}, true)
 	}
-
 	logger.SetDeploymentID(globalDeploymentID)
 
 	// Enable background operations for erasure coding
@@ -529,7 +528,16 @@ func serverMain(ctx *cli.Context) {
 
 	if globalIsErasure { // to be done after config init
 		initBackgroundReplication(GlobalContext, newObject)
+		globalTierConfigMgr, err = loadTransitionTierConfig()
+		if err != nil {
+			logger.FatalIf(err, "Unable to load remote tier config")
+		}
+		globalTierJournal, err = initTierDeletionJournal(GlobalContext.Done())
+		if err != nil {
+			logger.FatalIf(err, "Unable to initialize remote tier pending deletes journal")
+		}
 	}
+
 	if globalCacheConfig.Enabled {
 		// initialize the new disk cache objects.
 		var cacheAPI CacheObjectLayer

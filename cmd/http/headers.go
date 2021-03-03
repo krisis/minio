@@ -167,6 +167,8 @@ const (
 	MinIOSourceProxyRequest = "X-Minio-Source-Proxy-Request"
 	// Header indicates that this request is a replication request to create a REPLICA
 	MinIOSourceReplicationRequest = "X-Minio-Source-Replication-Request"
+	// Object date/time of expiration
+	MinIOTransition = "X-Minio-Transition"
 )
 
 // Common http query params S3 API

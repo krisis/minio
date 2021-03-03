@@ -289,6 +289,12 @@ var (
 	globalDNSCache *xhttp.DNSCache
 
 	globalForwarder *handlers.Forwarder
+
+	globalTierConfigMgr *TierConfigMgr
+
+	globalTierJournal *tierJournal
+
+	globalDebugRemoteTiersImmediately []string
 	// Add new variable global values here.
 )
 
