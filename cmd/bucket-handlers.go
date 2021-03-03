@@ -495,9 +495,6 @@ func (api objectAPIHandlers) DeleteMultipleObjectsHandler(w http.ResponseWriter,
 		}
 
 		if hasLifecycleConfig && gerr == nil {
-			object.PurgeTransitioned = goi.TransitionStatus
-			object.TransitionedObjName = goi.transitionedObjName
-			object.TransitionTier = goi.TransitionTier
 			oss[index].SetTransitionState(goi)
 		}
 		if replicateDeletes {
@@ -567,9 +564,6 @@ func (api objectAPIHandlers) DeleteMultipleObjectsHandler(w http.ResponseWriter,
 			VersionID:                     dObjects[i].VersionID,
 			VersionPurgeStatus:            dObjects[i].VersionPurgeStatus,
 			DeleteMarkerReplicationStatus: dObjects[i].DeleteMarkerReplicationStatus,
-			PurgeTransitioned:             dObjects[i].PurgeTransitioned,
-			TransitionedObjName:           dObjects[i].TransitionedObjName,
-			TransitionTier:                dObjects[i].TransitionTier,
 		}]
 		if errs[i] == nil || isErrObjectNotFound(errs[i]) || isErrVersionNotFound(errs[i]) {
 			if replicateDeletes {
