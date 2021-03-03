@@ -35,12 +35,6 @@ type DeletedObject struct {
 	DeleteMarkerMTime DeleteMarkerMTime `xml:"DeleteMarkerMTime,omitempty"`
 	// Status of versioned delete (of object or DeleteMarker)
 	VersionPurgeStatus VersionPurgeStatusType `xml:"VersionPurgeStatus,omitempty"`
-	// PurgeTransitioned is nonempty if object is in transition tier
-	PurgeTransitioned string `xml:"PurgeTransitioned,omitempty"`
-	// TransitionedObjName is the name of the object on transition tier
-	TransitionedObjName string `xml:"TransitionedObjName,omitempty"`
-	// TransitionTier is the transition storage class in use for this object version
-	TransitionTier string `xml:"TransitionTier,omitempty"`
 }
 
 // DeleteMarkerMTime is an embedded type containing time.Time for XML marshal
@@ -67,12 +61,6 @@ type ObjectToDelete struct {
 	VersionPurgeStatus VersionPurgeStatusType `xml:"VersionPurgeStatus"`
 	// Version ID of delete marker
 	DeleteMarkerVersionID string `xml:"DeleteMarkerVersionId"`
-	// PurgeTransitioned is nonempty if object is in transition tier
-	PurgeTransitioned string `xml:"PurgeTransitioned"`
-	// TransitionedObjName is the name of the object on transition tier
-	TransitionedObjName string `xml:"TransitionedObjName"`
-	// TransitionTier is the transition storage class in use for this object version
-	TransitionTier string `xml:"TransitionTier"`
 }
 
 // createBucketConfiguration container for bucket configuration request from client.
