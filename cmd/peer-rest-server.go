@@ -965,7 +965,7 @@ func (s *peerRESTServer) LoadTransitionTierConfigHandler(w http.ResponseWriter, 
 		return
 	}
 	go func() {
-		err := globalTierConfigMgr.Reload()
+		err := globalTierConfigMgr.Reload(context.Background(), newObjectLayerFn())
 		if err != nil {
 			logger.LogIf(context.Background(), fmt.Errorf("Failed to reload remote tier config %s", err))
 		}

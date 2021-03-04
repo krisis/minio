@@ -35,8 +35,8 @@ import (
 
 var (
 	errTierInsufficientCreds = errors.New("insufficient tier credentials supplied")
-	errWarmBackendInUse      = errors.New("Backend warm tier already in use")
-	errTierTypeUnsupported   = errors.New("Unsupported tier type")
+	errWarmBackendInUse      = errors.New("backend warm tier already in use")
+	errTierTypeUnsupported   = errors.New("unsupported tier type")
 )
 
 const (
@@ -264,9 +264,14 @@ func (config *TierConfigMgr) configReader() (*PutObjReader, *ObjectOptions, erro
 }
 
 // Reload updates config by reloading remote tier config from config store.
-func (config *TierConfigMgr) Reload() error {
-	newConfig, err := loadTransitionTierConfig()
-	if err != nil {
+func (config *TierConfigMgr) Reload(ctx context.Context, objAPI ObjectLayer) error {
+	newConfig, err := loadTierConfig(ctx, objAPI)
+	switch err {
+	case nil:
+		break
+	case errConfigNotFound: // nothing to reload
+		return nil
+	default:
 		return err
 	}
 
@@ -288,64 +293,84 @@ func (config *TierConfigMgr) Reload() error {
 	return nil
 }
 
-func saveGlobalTierConfig() error {
+// Save saves tier configuration onto objAPI
+func (config *TierConfigMgr) Save(ctx context.Context, objAPI ObjectLayer) error {
+	if objAPI == nil {
+		return errServerNotInitialized
+	}
+
 	pr, opts, err := globalTierConfigMgr.configReader()
 	if err != nil {
 		return err
 	}
 
-	objAPI := newObjectLayerFn()
-	if objAPI == nil {
-		return errServerNotInitialized
-	}
-	_, err = objAPI.PutObject(context.Background(), minioMetaBucket, tierConfigPath, pr, *opts)
+	_, err = objAPI.PutObject(ctx, minioMetaBucket, tierConfigPath, pr, *opts)
 	return err
 }
 
-func newTierConfigMgr() *TierConfigMgr {
+// NewTierConfigMgr - creates new tier configuration manager,
+func NewTierConfigMgr() *TierConfigMgr {
 	return &TierConfigMgr{
 		drivercache: make(map[string]WarmBackend),
 		Tiers:       make(map[string]madmin.TierConfig),
 	}
 }
 
-func loadTransitionTierConfig() (*TierConfigMgr, error) {
-	objAPI := newObjectLayerFn()
+// loadTierConfig loads remote tier configuration from objAPI.
+func loadTierConfig(ctx context.Context, objAPI ObjectLayer) (*TierConfigMgr, error) {
 	if objAPI == nil {
 		return nil, errServerNotInitialized
 	}
 
-	data, err := readConfig(context.Background(), objAPI, tierConfigPath)
-	switch err {
-	case nil:
-		break
-	case errConfigNotFound:
-		return newTierConfigMgr(), nil
-	default:
+	data, err := readConfig(ctx, objAPI, tierConfigPath)
+	if err != nil {
 		return nil, err
 	}
 
 	if len(data) <= 4 {
-		return nil, fmt.Errorf("loadTierConfig: no data")
+		return nil, fmt.Errorf("tierConfigInit: no data")
 	}
 
 	// Read header
 	switch binary.LittleEndian.Uint16(data[0:2]) {
 	case tierConfigFormat:
 	default:
-		return nil, fmt.Errorf("loadTierConfig: unknown format: %d", binary.LittleEndian.Uint16(data[0:2]))
+		return nil, fmt.Errorf("tierConfigInit: unknown format: %d", binary.LittleEndian.Uint16(data[0:2]))
 	}
 	switch binary.LittleEndian.Uint16(data[2:4]) {
 	case tierConfigVersion:
 	default:
-		return nil, fmt.Errorf("loadTierConfig: unknown version: %d", binary.LittleEndian.Uint16(data[2:4]))
+		return nil, fmt.Errorf("tierConfigInit: unknown version: %d", binary.LittleEndian.Uint16(data[2:4]))
 	}
 
-	config := newTierConfigMgr()
-	_, decErr := config.UnmarshalMsg(data[4:])
+	cfg := NewTierConfigMgr()
+	_, decErr := cfg.UnmarshalMsg(data[4:])
 	if decErr != nil {
-		return nil, err
+		return nil, decErr
+	}
+	return cfg, nil
+
+}
+
+// Reset clears remote tier configured and clears tier driver cache.
+func (config *TierConfigMgr) Reset() {
+	config.Lock()
+	for k := range config.drivercache {
+		delete(config.drivercache, k)
+	}
+	for k := range config.Tiers {
+		delete(config.Tiers, k)
+	}
+	config.Unlock()
+
+}
+
+// Init initializes tier configuration reading from objAPI
+func (config *TierConfigMgr) Init(ctx context.Context, objAPI ObjectLayer) error {
+	// In gateway mode, we don't support ILM tier configuration.
+	if globalIsGateway {
+		return nil
 	}
 
-	return config, nil
+	return config.Reload(ctx, objAPI)
 }
