@@ -1298,7 +1298,8 @@ func (er erasureObjects) TransitionObject(ctx context.Context, bucket, object st
 	}
 	// Acquire a write lock before deleting the object.
 	lk := er.NewNSLock(bucket, object)
-	if err := lk.GetLock(ctx, globalDeleteOperationTimeout); err != nil {
+	ctx, err = lk.GetLock(ctx, globalDeleteOperationTimeout)
+	if err != nil {
 		return err
 	}
 	defer lk.Unlock()
@@ -1380,7 +1381,8 @@ func (er erasureObjects) TransitionObject(ctx context.Context, bucket, object st
 func (er erasureObjects) RestoreTransitionedObject(ctx context.Context, bucket, object string, opts ObjectOptions) error {
 	// Acquire a write lock before restoring the object.
 	lk := er.NewNSLock(bucket, object)
-	if err := lk.GetLock(ctx, globalDeleteOperationTimeout); err != nil {
+	ctx, err := lk.GetLock(ctx, globalDeleteOperationTimeout)
+	if err != nil {
 		return err
 	}
 	defer lk.Unlock()

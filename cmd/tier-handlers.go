@@ -71,8 +71,8 @@ func (api adminAPIHandlers) AddTierHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	objectAPI, cred := validateAdminUsersReq(ctx, w, r, iampolicy.SetTierAction)
-	if objectAPI == nil || globalNotificationSys == nil || globalTierConfigMgr == nil {
+	objAPI, cred := validateAdminUsersReq(ctx, w, r, iampolicy.SetTierAction)
+	if objAPI == nil || globalNotificationSys == nil || globalTierConfigMgr == nil {
 		writeErrorResponseJSON(ctx, w, errorCodes.ToAPIErr(ErrServerNotInitialized), r.URL)
 		return
 	}
@@ -91,7 +91,7 @@ func (api adminAPIHandlers) AddTierHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Refresh from the disk in case we had missed notifications about edits from peers.
-	if err := globalTierConfigMgr.Reload(); err != nil {
+	if err := globalTierConfigMgr.Reload(ctx, objAPI); err != nil {
 		writeErrorResponseJSON(ctx, w, toAdminAPIErr(ctx, err), r.URL)
 		return
 	}
@@ -102,7 +102,7 @@ func (api adminAPIHandlers) AddTierHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	err = saveGlobalTierConfig()
+	err = globalTierConfigMgr.Save(ctx, objAPI)
 	if err != nil {
 		writeErrorResponseJSON(ctx, w, toAdminAPIErr(ctx, err), r.URL)
 		return
@@ -122,8 +122,8 @@ func (api adminAPIHandlers) ListTierHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	objectAPI, _ := validateAdminUsersReq(ctx, w, r, iampolicy.ListTierAction)
-	if objectAPI == nil || globalNotificationSys == nil || globalTierConfigMgr == nil {
+	objAPI, _ := validateAdminUsersReq(ctx, w, r, iampolicy.ListTierAction)
+	if objAPI == nil || globalNotificationSys == nil || globalTierConfigMgr == nil {
 		writeErrorResponseJSON(ctx, w, errorCodes.ToAPIErr(ErrServerNotInitialized), r.URL)
 		return
 	}
@@ -148,8 +148,8 @@ func (api adminAPIHandlers) EditTierHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	objectAPI, cred := validateAdminUsersReq(ctx, w, r, iampolicy.SetTierAction)
-	if objectAPI == nil || globalNotificationSys == nil || globalTierConfigMgr == nil {
+	objAPI, cred := validateAdminUsersReq(ctx, w, r, iampolicy.SetTierAction)
+	if objAPI == nil || globalNotificationSys == nil || globalTierConfigMgr == nil {
 		writeErrorResponseJSON(ctx, w, errorCodes.ToAPIErr(ErrServerNotInitialized), r.URL)
 		return
 	}
@@ -170,7 +170,7 @@ func (api adminAPIHandlers) EditTierHandler(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Refresh from the disk in case we had missed notifications about edits from peers.
-	if err := globalTierConfigMgr.Reload(); err != nil {
+	if err := globalTierConfigMgr.Reload(ctx, objAPI); err != nil {
 		writeErrorResponseJSON(ctx, w, toAdminAPIErr(ctx, err), r.URL)
 		return
 	}
@@ -180,7 +180,7 @@ func (api adminAPIHandlers) EditTierHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if err := saveGlobalTierConfig(); err != nil {
+	if err := globalTierConfigMgr.Save(ctx, objAPI); err != nil {
 		writeErrorResponseJSON(ctx, w, toAdminAPIErr(ctx, err), r.URL)
 		return
 	}

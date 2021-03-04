@@ -73,7 +73,7 @@ func (gcs *warmBackendGCS) Get(ctx context.Context, key string, opts warmBackend
 }
 
 func (gcs *warmBackendGCS) Remove(ctx context.Context, key string) error {
-	err := gcs.client.Bucket(gcs.Bucket).Object(key).Delete(ctx)
+	err := gcs.client.Bucket(gcs.Bucket).Object(gcs.getDest(key)).Delete(ctx)
 	return gcsToObjectError(err, gcs.Bucket, key)
 }
 

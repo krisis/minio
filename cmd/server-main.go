@@ -235,6 +235,9 @@ func newAllSubsystems() {
 
 	// Create new bucket replication subsytem
 	globalBucketTargetSys = NewBucketTargetSys()
+
+	// Create new ILM tier configuration subsystem
+	globalTierConfigMgr = NewTierConfigMgr()
 }
 
 func initServer(ctx context.Context, newObject ObjectLayer) error {
@@ -397,6 +400,13 @@ func initAllSubsystems(ctx context.Context, newObject ObjectLayer) (err error) {
 	// Initialize bucket targets sub-system.
 	globalBucketTargetSys.Init(ctx, buckets, newObject)
 
+	if globalIsErasure {
+		// Initialize transition tier configuration manager
+		err = globalTierConfigMgr.Init(ctx, newObject)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -528,10 +538,6 @@ func serverMain(ctx *cli.Context) {
 
 	if globalIsErasure { // to be done after config init
 		initBackgroundReplication(GlobalContext, newObject)
-		globalTierConfigMgr, err = loadTransitionTierConfig()
-		if err != nil {
-			logger.FatalIf(err, "Unable to load remote tier config")
-		}
 		globalTierJournal, err = initTierDeletionJournal(GlobalContext.Done())
 		if err != nil {
 			logger.FatalIf(err, "Unable to initialize remote tier pending deletes journal")

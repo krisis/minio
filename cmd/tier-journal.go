@@ -25,7 +25,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/minio/minio/cmd/logger"
@@ -52,16 +51,12 @@ const (
 )
 
 func initTierDeletionJournal(done <-chan struct{}) (*tierJournal, error) {
-	diskPath, ok := globalEndpoints.FirstLocalDiskPath()
-	if !ok {
-		return nil, errors.New("failed to find first local disk path")
-	}
-
+	diskPath := globalEndpoints.FirstLocalDiskPath()
 	j := &tierJournal{
 		diskPath: diskPath,
 	}
 
-	if err := os.MkdirAll(filepath.Dir(j.JournalPath()), os.FileMode(0770)); err != nil {
+	if err := os.MkdirAll(filepath.Dir(j.JournalPath()), os.FileMode(0700)); err != nil {
 		return nil, err
 	}
 
@@ -232,7 +227,7 @@ func (j *tierJournal) Open() error {
 	}
 
 	var err error
-	j.file, err = os.OpenFile(j.JournalPath(), os.O_APPEND|os.O_CREATE|os.O_WRONLY|syscall.O_DSYNC, 0644)
+	j.file, err = os.OpenFile(j.JournalPath(), os.O_APPEND|os.O_CREATE|os.O_WRONLY|writeMode, 0644)
 	if err != nil {
 		return err
 	}
