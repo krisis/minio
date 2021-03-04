@@ -25,7 +25,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/minio/minio/cmd/logger"
@@ -232,7 +231,7 @@ func (j *tierJournal) Open() error {
 	}
 
 	var err error
-	j.file, err = os.OpenFile(j.JournalPath(), os.O_APPEND|os.O_CREATE|os.O_WRONLY|syscall.O_DSYNC, 0644)
+	j.file, err = os.OpenFile(j.JournalPath(), os.O_APPEND|os.O_CREATE|os.O_WRONLY|writeMode, 0644)
 	if err != nil {
 		return err
 	}
