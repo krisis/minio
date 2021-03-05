@@ -93,7 +93,7 @@ func (az *warmBackendAzure) InUse(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, azureToObjectError(err, az.Bucket, az.Prefix)
 	}
-	if len(resp.Segment.BlobPrefixes) > 0 {
+	if len(resp.Segment.BlobPrefixes) > 0 || len(resp.Segment.BlobItems) > 0 {
 		return true, nil
 	}
 	return false, nil

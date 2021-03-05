@@ -62,7 +62,7 @@ func (s3 *warmBackendS3) Put(ctx context.Context, object string, r io.Reader, le
 func (s3 *warmBackendS3) Get(ctx context.Context, object string, opts warmBackendGetOpts) (io.ReadCloser, error) {
 	gopts := minio.GetObjectOptions{}
 
-	if opts.startOffset >= 0 && opts.length >= 0 {
+	if opts.startOffset >= 0 && opts.length > 0 {
 		if err := gopts.SetRange(opts.startOffset, opts.startOffset+opts.length-1); err != nil {
 			return nil, s3.ToObjectError(err, object)
 		}
@@ -89,7 +89,7 @@ func (s3 *warmBackendS3) InUse(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, s3.ToObjectError(err)
 	}
-	if len(result.CommonPrefixes) > 0 {
+	if len(result.CommonPrefixes) > 0 || len(result.Contents) > 0 {
 		return true, nil
 	}
 	return false, nil
