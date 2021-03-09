@@ -814,10 +814,7 @@ next:
 			}
 
 			if hasLifecycleConfig {
-				if jentry, ok := os.ShouldRemoveRemoteObject(); ok {
-					err := globalTierJournal.AddEntry(jentry)
-					logger.LogIf(ctx, err)
-				}
+				logger.LogIf(ctx, os.Sweep())
 			}
 
 			logger.LogIf(ctx, err)
@@ -1312,12 +1309,12 @@ func (web *webAPIHandlers) Upload(w http.ResponseWriter, r *http.Request) {
 	if _, err := globalBucketMetadataSys.GetLifecycleConfig(bucket); err == nil {
 		hasLifecycleConfig = true
 	}
-	oc := newObjSweeper(bucket, object)
+	os := newObjSweeper(bucket, object)
 	if hasLifecycleConfig {
 		// Get appropriate object info to identify the remote object to delete
-		goiOpts := oc.GetOpts()
+		goiOpts := os.GetOpts()
 		if goi, gerr := getObjectInfo(ctx, bucket, object, goiOpts); gerr == nil {
-			oc.SetTransitionState(goi)
+			os.SetTransitionState(goi)
 		}
 	}
 
@@ -1339,10 +1336,7 @@ func (web *webAPIHandlers) Upload(w http.ResponseWriter, r *http.Request) {
 		scheduleReplication(ctx, objInfo.Clone(), objectAPI, sync)
 	}
 	if hasLifecycleConfig {
-		if jentry, ok := oc.ShouldRemoveRemoteObject(); ok {
-			err := globalTierJournal.AddEntry(jentry)
-			logger.LogIf(ctx, err)
-		}
+		logger.LogIf(ctx, os.Sweep())
 	}
 	// Notify object created event.
 	sendEvent(eventArgs{

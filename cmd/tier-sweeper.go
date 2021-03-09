@@ -17,6 +17,8 @@
 package cmd
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -50,6 +52,8 @@ type objSweeper struct {
 	RemoteObject     string
 }
 
+type getObjectInfoFn func(ctx context.Context, bucket, object string, opts ObjectOptions) (objInfo ObjectInfo, err error)
+
 // newObjSweeper returns an objSweeper for a given bucket and object.
 // It initializes the versioning information using bucket name.
 func newObjSweeper(bucket, object string) *objSweeper {
@@ -61,6 +65,26 @@ func newObjSweeper(bucket, object string) *objSweeper {
 		Versioned: versioned,
 		Suspended: suspended,
 	}
+}
+
+func (os *objSweeper) GetRemoteObjectInfo(ctx context.Context, goiFn getObjectInfoFn) error {
+	// Mutations of objects on versioning suspended buckets
+	// affect its null version. Through opts below we select
+	// the null version's remote object to delete if
+	// transitioned.
+	if goiFn == nil {
+		return errors.New("invalid getobjectInfoFn")
+	}
+	opts := os.GetOpts()
+	goi, err := goiFn(ctx, os.Bucket, os.Object, opts)
+	switch {
+	case err == nil:
+		os.SetTransitionState(goi)
+	case isErrObjectNotFound(err), isErrVersionNotFound(err):
+	default:
+		return err
+	}
+	return nil
 }
 
 // versionID interface is used to fetch object versionID from disparate sources
@@ -117,11 +141,11 @@ func (os *objSweeper) SetTransitionState(info ObjectInfo) {
 	os.RemoteObject = info.transitionedObjName
 }
 
-// ShouldRemoveRemoteObject determines if a transitioned object should be
+// shouldRemoveRemoteObject determines if a transitioned object should be
 // removed from remote tier. If remote object is to be deleted, returns the
 // corresponding tier deletion journal entry and true. Otherwise returns empty
 // jentry value and false.
-func (os *objSweeper) ShouldRemoveRemoteObject() (jentry, bool) {
+func (os *objSweeper) shouldRemoveRemoteObject() (jentry, bool) {
 	if os.TransitionStatus != lifecycle.TransitionComplete {
 		return jentry{}, false
 	}
@@ -144,4 +168,11 @@ func (os *objSweeper) ShouldRemoveRemoteObject() (jentry, bool) {
 		return jentry{ObjName: os.RemoteObject, TierName: os.TransitionTier}, true
 	}
 	return jentry{}, false
+}
+
+func (os *objSweeper) Sweep() error {
+	if je, ok := os.shouldRemoveRemoteObject(); ok {
+		return globalTierJournal.AddEntry(je)
+	}
+	return nil
 }

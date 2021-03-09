@@ -623,10 +623,7 @@ func (api objectAPIHandlers) DeleteMultipleObjectsHandler(w http.ResponseWriter,
 			if os == nil { // skip objects that weren't deleted due to invalid versionID etc.
 				continue
 			}
-			if je, ok := os.ShouldRemoveRemoteObject(); ok {
-				err := globalTierJournal.AddEntry(je)
-				logger.LogIf(ctx, err)
-			}
+			logger.LogIf(ctx, os.Sweep())
 		}
 	}
 

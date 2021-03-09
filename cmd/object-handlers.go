@@ -1352,10 +1352,7 @@ func (api objectAPIHandlers) CopyObjectHandler(w http.ResponseWriter, r *http.Re
 
 		// Remove the transitioned object whose object version is being overwritten.
 		if hasLifecycleConfig {
-			if jentry, ok := os.ShouldRemoveRemoteObject(); ok {
-				err := globalTierJournal.AddEntry(jentry)
-				logger.LogIf(ctx, err)
-			}
+			logger.LogIf(ctx, os.Sweep())
 		}
 	}
 	objInfo.ETag = getDecryptedETag(r.Header, objInfo, false)
@@ -1695,10 +1692,7 @@ func (api objectAPIHandlers) PutObjectHandler(w http.ResponseWriter, r *http.Req
 
 	// Remove the transitioned object whose object version is being overwritten.
 	if hasLifecycleConfig {
-		if jentry, ok := oc.ShouldRemoveRemoteObject(); ok {
-			err = globalTierJournal.AddEntry(jentry)
-			logger.LogIf(ctx, err)
-		}
+		logger.LogIf(ctx, oc.Sweep())
 	}
 
 	setPutObjHeaders(w, objInfo, false)
@@ -2800,10 +2794,7 @@ func (api objectAPIHandlers) CompleteMultipartUploadHandler(w http.ResponseWrite
 
 	if hasLifecycleConfig {
 		// Remove the transitioned object whose object version is being overwritten.
-		if jentry, ok := os.ShouldRemoveRemoteObject(); ok {
-			err := globalTierJournal.AddEntry(jentry)
-			logger.LogIf(ctx, err)
-		}
+		logger.LogIf(ctx, os.Sweep())
 	}
 
 	// Write success response.
@@ -3000,10 +2991,7 @@ func (api objectAPIHandlers) DeleteObjectHandler(w http.ResponseWriter, r *http.
 
 	if hasLifecycleConfig {
 		// Remove the transitioned object whose object version is being overwritten.
-		if jentry, ok := os.ShouldRemoveRemoteObject(); ok {
-			err := globalTierJournal.AddEntry(jentry)
-			logger.LogIf(ctx, err)
-		}
+		logger.LogIf(ctx, os.Sweep())
 	}
 }
 
