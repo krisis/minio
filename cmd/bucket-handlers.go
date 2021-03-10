@@ -443,16 +443,13 @@ func (api objectAPIHandlers) DeleteMultipleObjectsHandler(w http.ResponseWriter,
 		getObjectInfoFn = api.CacheAPI().GetObjectInfo
 	}
 	var (
-		hasLockEnabled, hasLifecycleConfig, replicateSync bool
-		goi                                               ObjectInfo
-		gerr                                              error
+		hasLockEnabled, replicateSync bool
+		goi                           ObjectInfo
+		gerr                          error
 	)
 	replicateDeletes := hasReplicationRules(ctx, bucket, deleteObjects.Objects)
 	if rcfg, _ := globalBucketObjectLockSys.Get(bucket); rcfg.LockEnabled {
 		hasLockEnabled = true
-	}
-	if _, err := globalBucketMetadataSys.GetLifecycleConfig(bucket); err == nil {
-		hasLifecycleConfig = true
 	}
 
 	dErrs := make([]DeleteError, len(deleteObjects.Objects))
@@ -487,19 +484,13 @@ func (api objectAPIHandlers) DeleteMultipleObjectsHandler(w http.ResponseWriter,
 		}
 
 		oss[index] = newObjSweeper(bucket, object.ObjectName).ForDelete(multiDelete(object))
-		var opts ObjectOptions
-		if hasLifecycleConfig {
-			// Mutations of objects on versioning suspended buckets
-			// affect its null version. Through opts below we select
-			// the null version's remote object to delete if
-			// transitioned.
-			opts = oss[index].GetOpts()
-		}
-		if hasLifecycleConfig || replicateDeletes || hasLockEnabled {
-			goi, gerr = getObjectInfoFn(ctx, bucket, object.ObjectName, opts)
-		}
-
-		if hasLifecycleConfig && gerr == nil {
+		// Mutations of objects on versioning suspended buckets
+		// affect its null version. Through opts below we select
+		// the null version's remote object to delete if
+		// transitioned.
+		opts := oss[index].GetOpts()
+		goi, gerr = getObjectInfoFn(ctx, bucket, object.ObjectName, opts)
+		if gerr == nil {
 			oss[index].SetTransitionState(goi)
 		}
 		if replicateDeletes {
@@ -618,13 +609,11 @@ func (api objectAPIHandlers) DeleteMultipleObjectsHandler(w http.ResponseWriter,
 	}
 
 	// Clean up transitioned objects from remote tier
-	if hasLifecycleConfig {
-		for _, os := range oss {
-			if os == nil { // skip objects that weren't deleted due to invalid versionID etc.
-				continue
-			}
-			logger.LogIf(ctx, os.Sweep())
+	for _, os := range oss {
+		if os == nil { // skip objects that weren't deleted due to invalid versionID etc.
+			continue
 		}
+		logger.LogIf(ctx, os.Sweep())
 	}
 
 	// Notify deleted event for objects.

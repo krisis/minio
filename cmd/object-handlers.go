@@ -1322,15 +1322,10 @@ func (api objectAPIHandlers) CopyObjectHandler(w http.ResponseWriter, r *http.Re
 		objInfo.ETag = remoteObjInfo.ETag
 		objInfo.ModTime = remoteObjInfo.LastModified
 	} else {
-		var hasLifecycleConfig bool
-		if !srcInfo.metadataOnly {
-			if _, err := globalBucketMetadataSys.GetLifecycleConfig(dstBucket); err == nil {
-				hasLifecycleConfig = true
-			}
-		}
+
 		os := newObjSweeper(dstBucket, dstObject)
-		if hasLifecycleConfig {
-			// Get appropriate object info to identify the remote object to delete
+		// Get appropriate object info to identify the remote object to delete
+		if !srcInfo.metadataOnly {
 			goiOpts := os.GetOpts()
 			if goi, gerr := getObjectInfo(ctx, dstBucket, dstObject, goiOpts); gerr == nil {
 				os.SetTransitionState(goi)
@@ -1351,9 +1346,7 @@ func (api objectAPIHandlers) CopyObjectHandler(w http.ResponseWriter, r *http.Re
 		}
 
 		// Remove the transitioned object whose object version is being overwritten.
-		if hasLifecycleConfig {
-			logger.LogIf(ctx, os.Sweep())
-		}
+		logger.LogIf(ctx, os.Sweep())
 	}
 	objInfo.ETag = getDecryptedETag(r.Header, objInfo, false)
 	response := generateCopyObjectResponse(objInfo.ETag, objInfo.ModTime)
@@ -1647,17 +1640,11 @@ func (api objectAPIHandlers) PutObjectHandler(w http.ResponseWriter, r *http.Req
 	// Ensure that metadata does not contain sensitive information
 	crypto.RemoveSensitiveEntries(metadata)
 
-	var hasLifecycleConfig bool
-	if _, err := globalBucketMetadataSys.GetLifecycleConfig(bucket); err == nil {
-		hasLifecycleConfig = true
-	}
 	oc := newObjSweeper(bucket, object)
-	if hasLifecycleConfig {
-		// Get appropriate object info to identify the remote object to delete
-		goiOpts := oc.GetOpts()
-		if goi, gerr := getObjectInfo(ctx, bucket, object, goiOpts); gerr == nil {
-			oc.SetTransitionState(goi)
-		}
+	// Get appropriate object info to identify the remote object to delete
+	goiOpts := oc.GetOpts()
+	if goi, gerr := getObjectInfo(ctx, bucket, object, goiOpts); gerr == nil {
+		oc.SetTransitionState(goi)
 	}
 
 	// Create the object..
@@ -1691,9 +1678,7 @@ func (api objectAPIHandlers) PutObjectHandler(w http.ResponseWriter, r *http.Req
 	}
 
 	// Remove the transitioned object whose object version is being overwritten.
-	if hasLifecycleConfig {
-		logger.LogIf(ctx, oc.Sweep())
-	}
+	logger.LogIf(ctx, oc.Sweep())
 
 	setPutObjHeaders(w, objInfo, false)
 
@@ -2742,17 +2727,11 @@ func (api objectAPIHandlers) CompleteMultipartUploadHandler(w http.ResponseWrite
 		w.(http.Flusher).Flush()
 	}
 
-	var hasLifecycleConfig bool
-	if _, err := globalBucketMetadataSys.GetLifecycleConfig(bucket); err == nil {
-		hasLifecycleConfig = true
-	}
 	os := newObjSweeper(bucket, object)
-	if hasLifecycleConfig {
-		// Get appropriate object info to identify the remote object to delete
-		goiOpts := os.GetOpts()
-		if goi, gerr := objectAPI.GetObjectInfo(ctx, bucket, object, goiOpts); gerr == nil {
-			os.SetTransitionState(goi)
-		}
+	// Get appropriate object info to identify the remote object to delete
+	goiOpts := os.GetOpts()
+	if goi, gerr := objectAPI.GetObjectInfo(ctx, bucket, object, goiOpts); gerr == nil {
+		os.SetTransitionState(goi)
 	}
 
 	setEventStreamHeaders(w)
@@ -2792,10 +2771,8 @@ func (api objectAPIHandlers) CompleteMultipartUploadHandler(w http.ResponseWrite
 		scheduleReplication(ctx, objInfo.Clone(), objectAPI, sync)
 	}
 
-	if hasLifecycleConfig {
-		// Remove the transitioned object whose object version is being overwritten.
-		logger.LogIf(ctx, os.Sweep())
-	}
+	// Remove the transitioned object whose object version is being overwritten.
+	logger.LogIf(ctx, os.Sweep())
 
 	// Write success response.
 	writeSuccessResponseXML(w, encodedSuccessResponse)
@@ -2858,33 +2835,22 @@ func (api objectAPIHandlers) DeleteObjectHandler(w http.ResponseWriter, r *http.
 		return
 	}
 	var (
-		hasLockEnabled, hasLifecycleConfig bool
-		goi                                ObjectInfo
-		gerr                               error
+		goi  ObjectInfo
+		gerr error
 	)
-	replicateDeletes := hasReplicationRules(ctx, bucket, []ObjectToDelete{{ObjectName: object, VersionID: opts.VersionID}})
-	if rcfg, _ := globalBucketObjectLockSys.Get(bucket); rcfg.LockEnabled {
-		hasLockEnabled = true
-	}
-	if _, err := globalBucketMetadataSys.GetLifecycleConfig(bucket); err == nil {
-		hasLifecycleConfig = true
-	}
 
 	var goiOpts ObjectOptions
 	os := newObjSweeper(bucket, object).ForDelete(singleDelete(*r))
-	if hasLifecycleConfig {
-		// Mutations of objects on versioning suspended buckets
-		// affect its null version. Through opts below we select
-		// the null version's remote object to delete if
-		// transitioned.
-		goiOpts = os.GetOpts()
+	// Mutations of objects on versioning suspended buckets
+	// affect its null version. Through opts below we select
+	// the null version's remote object to delete if
+	// transitioned.
+	goiOpts = os.GetOpts()
+	goi, gerr = getObjectInfo(ctx, bucket, object, goiOpts)
+	if gerr == nil {
+		os.SetTransitionState(goi)
 	}
-	if replicateDeletes || hasLockEnabled || hasLifecycleConfig {
-		goi, gerr = getObjectInfo(ctx, bucket, object, goiOpts)
-		if gerr == nil {
-			os.SetTransitionState(goi)
-		}
-	}
+
 	_, replicateDel, replicateSync := checkReplicateDelete(ctx, bucket, ObjectToDelete{ObjectName: object, VersionID: opts.VersionID}, goi, gerr)
 	if replicateDel {
 		if opts.VersionID != "" {
@@ -2989,10 +2955,9 @@ func (api objectAPIHandlers) DeleteObjectHandler(w http.ResponseWriter, r *http.
 		scheduleReplicationDelete(ctx, dobj, objectAPI, replicateSync)
 	}
 
-	if hasLifecycleConfig {
-		// Remove the transitioned object whose object version is being overwritten.
-		logger.LogIf(ctx, os.Sweep())
-	}
+	// Remove the transitioned object whose object version is being overwritten.
+	logger.LogIf(ctx, os.Sweep())
+
 }
 
 // PutObjectLegalHoldHandler - set legal hold configuration to object,

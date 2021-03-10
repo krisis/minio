@@ -17,8 +17,6 @@
 package cmd
 
 import (
-	"context"
-	"errors"
 	"net/http"
 	"strings"
 
@@ -52,8 +50,6 @@ type objSweeper struct {
 	RemoteObject     string
 }
 
-type getObjectInfoFn func(ctx context.Context, bucket, object string, opts ObjectOptions) (objInfo ObjectInfo, err error)
-
 // newObjSweeper returns an objSweeper for a given bucket and object.
 // It initializes the versioning information using bucket name.
 func newObjSweeper(bucket, object string) *objSweeper {
@@ -65,26 +61,6 @@ func newObjSweeper(bucket, object string) *objSweeper {
 		Versioned: versioned,
 		Suspended: suspended,
 	}
-}
-
-func (os *objSweeper) GetRemoteObjectInfo(ctx context.Context, goiFn getObjectInfoFn) error {
-	// Mutations of objects on versioning suspended buckets
-	// affect its null version. Through opts below we select
-	// the null version's remote object to delete if
-	// transitioned.
-	if goiFn == nil {
-		return errors.New("invalid getobjectInfoFn")
-	}
-	opts := os.GetOpts()
-	goi, err := goiFn(ctx, os.Bucket, os.Object, opts)
-	switch {
-	case err == nil:
-		os.SetTransitionState(goi)
-	case isErrObjectNotFound(err), isErrVersionNotFound(err):
-	default:
-		return err
-	}
-	return nil
 }
 
 // versionID interface is used to fetch object versionID from disparate sources
@@ -170,6 +146,7 @@ func (os *objSweeper) shouldRemoveRemoteObject() (jentry, bool) {
 	return jentry{}, false
 }
 
+// Sweep removes the transitioned object if it's no longer referred to.
 func (os *objSweeper) Sweep() error {
 	if je, ok := os.shouldRemoveRemoteObject(); ok {
 		return globalTierJournal.AddEntry(je)

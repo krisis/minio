@@ -813,11 +813,8 @@ next:
 				scheduleReplicationDelete(ctx, dobj, objectAPI, replicateSync)
 			}
 
-			if hasLifecycleConfig {
-				logger.LogIf(ctx, os.Sweep())
-			}
-
 			logger.LogIf(ctx, err)
+			logger.LogIf(ctx, os.Sweep())
 			continue
 		}
 
@@ -1305,17 +1302,11 @@ func (web *webAPIHandlers) Upload(w http.ResponseWriter, r *http.Request) {
 		opts.UserDefined[strings.ToLower(xhttp.AmzObjectLockRetainUntilDate)] = retentionDate.UTC().Format(iso8601TimeFormat)
 	}
 
-	var hasLifecycleConfig bool
-	if _, err := globalBucketMetadataSys.GetLifecycleConfig(bucket); err == nil {
-		hasLifecycleConfig = true
-	}
 	os := newObjSweeper(bucket, object)
-	if hasLifecycleConfig {
-		// Get appropriate object info to identify the remote object to delete
-		goiOpts := os.GetOpts()
-		if goi, gerr := getObjectInfo(ctx, bucket, object, goiOpts); gerr == nil {
-			os.SetTransitionState(goi)
-		}
+	// Get appropriate object info to identify the remote object to delete
+	goiOpts := os.GetOpts()
+	if goi, gerr := getObjectInfo(ctx, bucket, object, goiOpts); gerr == nil {
+		os.SetTransitionState(goi)
 	}
 
 	objInfo, err := putObject(GlobalContext, bucket, object, pReader, opts)
@@ -1335,9 +1326,8 @@ func (web *webAPIHandlers) Upload(w http.ResponseWriter, r *http.Request) {
 	if mustReplicate {
 		scheduleReplication(ctx, objInfo.Clone(), objectAPI, sync)
 	}
-	if hasLifecycleConfig {
-		logger.LogIf(ctx, os.Sweep())
-	}
+	logger.LogIf(ctx, os.Sweep())
+
 	// Notify object created event.
 	sendEvent(eventArgs{
 		EventName:    event.ObjectCreatedPut,
