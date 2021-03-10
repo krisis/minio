@@ -934,7 +934,7 @@ func (api objectAPIHandlers) CopyObjectHandler(w http.ResponseWriter, r *http.Re
 
 	// Validate storage class metadata if present
 	dstSc := r.Header.Get(xhttp.AmzStorageClass)
-	if dstSc != "" && !storageclass.IsValid(dstSc) && !globalTierConfigMgr.IsTierValid(dstSc) {
+	if dstSc != "" && !storageclass.IsValid(dstSc) {
 		writeErrorResponse(ctx, w, errorCodes.ToAPIErr(ErrInvalidStorageClass), r.URL, guessIsBrowserReq(r))
 		return
 	}
