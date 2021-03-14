@@ -426,8 +426,6 @@ func (j xlMetaV2Object) ToFileInfo(volume, path string) (FileInfo, error) {
 	}
 	for k, v := range j.MetaSys {
 		switch {
-		case equals(k, ReservedMetadataPrefixLower+"transition-status"):
-			fi.TransitionStatus = string(v)
 		case equals(k, VersionPurgeStatusKey):
 			fi.VersionPurgeStatus = VersionPurgeStatusType(string(v))
 		case strings.HasPrefix(strings.ToLower(k), ReservedMetadataPrefixLower):
