@@ -156,7 +156,7 @@ func (t *transitionState) addWorker(ctx context.Context, objectAPI ObjectLayer) 
 				}
 
 				if err := transitionObject(ctx, objectAPI, oi); err != nil {
-					logger.LogIf(ctx, fmt.Errorf("Transition failed for %s/%s version:%s with %s", oi.Bucket, oi.Name, oi.VersionID, err))
+					logger.LogIf(ctx, fmt.Errorf("Transition failed for %s/%s version:%s with %w", oi.Bucket, oi.Name, oi.VersionID, err))
 				}
 			}
 		}
@@ -205,8 +205,10 @@ func validateTransitionDestination(sc string) error {
 type expireAction int
 
 const (
+	// ignore the zero value
+	_ expireAction = iota
 	// expireObj indicates expiry of 'regular' transitioned objects.
-	expireObj expireAction = iota
+	expireObj
 	// expireRestoredObj indicates expiry of restored objects.
 	expireRestoredObj
 )
@@ -259,6 +261,8 @@ func expireTransitionedObject(ctx context.Context, objectAPI ObjectLayer, bucket
 		opts.Transition.ExpireRestored = true
 		_, err := objectAPI.DeleteObject(ctx, bucket, object, opts)
 		return err
+	default:
+		return fmt.Errorf("Unknown expire action %v", action)
 	}
 
 	return nil
@@ -333,9 +337,7 @@ func getTransitionedObjectReader(ctx context.Context, bucket, object string, rs 
 	if err != nil {
 		return nil, err
 	}
-	closeReader := func() { reader.Close() }
-
-	return fn(reader, h, opts.CheckPrecondFn, closeReader)
+	return fn(reader, h, opts.CheckPrecondFn)
 }
 
 // RestoreRequestType represents type of restore.
@@ -509,29 +511,92 @@ var (
 	errRestoreHDRMalformed = fmt.Errorf("x-amz-restore header malformed")
 )
 
-// parse x-amz-restore header from user metadata to get the status of ongoing request and expiry of restoration
-// if any. This header value is of format: ongoing-request=true|false, expires=time
-func parseRestoreHeaderFromMeta(meta map[string]string) (ongoing bool, expiry time.Time, err error) {
+// restoreObjStatus represents a restore-object's status. It can be either
+// ongoing or completed.
+type restoreObjStatus struct {
+	ongoing bool
+	expiry  time.Time
+}
+
+// ongoingRestoreObj constructs restoreObjStatus for an ongoing restore-object.
+func ongoingRestoreObj() restoreObjStatus {
+	return restoreObjStatus{
+		ongoing: true,
+	}
+}
+
+// completeRestoreObj constructs restoreObjStatus for a completed restore-object with given expiry.
+func completedRestoreObj(expiry time.Time) restoreObjStatus {
+	return restoreObjStatus{
+		ongoing: false,
+		expiry:  expiry,
+	}
+}
+
+// String returns x-amz-restore compatible representation of r.
+func (r restoreObjStatus) String() string {
+	if r.Ongoing() {
+		return "ongoing-request=true"
+	}
+	return fmt.Sprintf("ongoing-request=false, expiry-date=%s", r.expiry.Format(http.TimeFormat))
+}
+
+// Expiry returns expiry of restored object and true if restore-object has completed.
+// Otherwise returns zero value of time.Time and false.
+func (r restoreObjStatus) Expiry() (time.Time, bool) {
+	if r.Ongoing() {
+		return time.Time{}, false
+	}
+	return r.expiry, true
+}
+
+// Ongoing returns true if restore-object is ongoing.
+func (r restoreObjStatus) Ongoing() bool {
+	return r.ongoing
+}
+
+// parseRestoreObjStatus parses x-amz-restore header value from meta. If the
+// value is valid it returns a restoreObjStatus value with the status and expiry
+// (if any). Otherwise returns the empty value and an error indicating the parse
+// failure.
+func parseRestoreObjStatus(meta map[string]string) (restoreObjStatus, error) {
 	restoreHdr, ok := meta[xhttp.AmzRestore]
 	if !ok {
-		return ongoing, expiry, errRestoreHDRMissing
-	}
-	rslc := strings.SplitN(restoreHdr, ",", 2)
-	if len(rslc) != 2 {
-		return ongoing, expiry, errRestoreHDRMalformed
-	}
-	rstatusSlc := strings.SplitN(rslc[0], "=", 2)
-	if len(rstatusSlc) != 2 {
-		return ongoing, expiry, errRestoreHDRMalformed
-	}
-	rExpSlc := strings.SplitN(rslc[1], "=", 2)
-	if len(rExpSlc) != 2 {
-		return ongoing, expiry, errRestoreHDRMalformed
+		return restoreObjStatus{}, errRestoreHDRMissing
 	}
 
-	expiry, err = time.Parse(http.TimeFormat, rExpSlc[1])
-	if err != nil {
-		return
+	tokens := strings.SplitN(restoreHdr, ",", 2)
+	progressTokens := strings.SplitN(tokens[0], "=", 2)
+	if len(progressTokens) != 2 {
+		return restoreObjStatus{}, errRestoreHDRMalformed
 	}
-	return rstatusSlc[1] == "true", expiry, nil
+	if strings.TrimSpace(progressTokens[0]) != "ongoing-request" {
+		return restoreObjStatus{}, errRestoreHDRMalformed
+	}
+
+	switch progressTokens[1] {
+	case "true":
+		if len(tokens) == 1 {
+			return ongoingRestoreObj(), nil
+		}
+
+	case "false":
+		if len(tokens) != 2 {
+			return restoreObjStatus{}, errRestoreHDRMalformed
+		}
+		expiryTokens := strings.SplitN(tokens[1], "=", 2)
+		if len(expiryTokens) != 2 {
+			return restoreObjStatus{}, errRestoreHDRMalformed
+		}
+		if strings.TrimSpace(expiryTokens[0]) != "expiry-date" {
+			return restoreObjStatus{}, errRestoreHDRMalformed
+		}
+
+		expiry, err := time.Parse(http.TimeFormat, expiryTokens[1])
+		if err != nil {
+			return restoreObjStatus{}, errRestoreHDRMalformed
+		}
+		return completedRestoreObj(expiry), nil
+	}
+	return restoreObjStatus{}, errRestoreHDRMalformed
 }

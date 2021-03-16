@@ -168,9 +168,9 @@ func (fi FileInfo) ToObjectInfo(bucket, object string) ObjectInfo {
 
 	objInfo.VersionPurgeStatus = fi.VersionPurgeStatus
 	// set restore status for transitioned object
-	if ongoing, exp, err := parseRestoreHeaderFromMeta(fi.Metadata); err == nil {
-		objInfo.RestoreOngoing = ongoing
-		objInfo.RestoreExpires = exp
+	if restoreStatus, err := parseRestoreObjStatus(fi.Metadata); err == nil {
+		objInfo.RestoreOngoing = restoreStatus.Ongoing()
+		objInfo.RestoreExpires, _ = restoreStatus.Expiry()
 	}
 	// Success.
 	return objInfo
