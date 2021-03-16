@@ -2840,7 +2840,7 @@ func (api objectAPIHandlers) DeleteObjectHandler(w http.ResponseWriter, r *http.
 	)
 
 	var goiOpts ObjectOptions
-	os := newObjSweeper(bucket, object).ForDelete(singleDelete(*r))
+	os := newObjSweeper(bucket, object).WithVersion(singleDelete(*r))
 	// Mutations of objects on versioning suspended buckets
 	// affect its null version. Through opts below we select
 	// the null version's remote object to delete if

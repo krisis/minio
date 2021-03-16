@@ -156,7 +156,7 @@ func (t *transitionState) addWorker(ctx context.Context, objectAPI ObjectLayer) 
 				}
 
 				if err := transitionObject(ctx, objectAPI, oi); err != nil {
-					logger.LogIf(ctx, fmt.Errorf("Transition failed for %s/%s version:%s with %s", oi.Bucket, oi.Name, oi.VersionID, err))
+					logger.LogIf(ctx, fmt.Errorf("Transition failed for %s/%s version:%s with %w", oi.Bucket, oi.Name, oi.VersionID, err))
 				}
 			}
 		}
@@ -205,8 +205,10 @@ func validateTransitionDestination(sc string) error {
 type expireAction int
 
 const (
+	// ignore the zero value
+	_ expireAction = iota
 	// expireObj indicates expiry of 'regular' transitioned objects.
-	expireObj expireAction = iota
+	expireObj
 	// expireRestoredObj indicates expiry of restored objects.
 	expireRestoredObj
 )
@@ -259,6 +261,8 @@ func expireTransitionedObject(ctx context.Context, objectAPI ObjectLayer, bucket
 		opts.Transition.ExpireRestored = true
 		_, err := objectAPI.DeleteObject(ctx, bucket, object, opts)
 		return err
+	default:
+		return fmt.Errorf("Unknown expire action %v", action)
 	}
 
 	return nil

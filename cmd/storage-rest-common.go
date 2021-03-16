@@ -17,7 +17,7 @@
 package cmd
 
 const (
-	storageRESTVersion       = "v29" // Removed WalkVersions()
+	storageRESTVersion       = "v30" // Added ExpireRestored field to FileInfo
 	storageRESTVersionPrefix = SlashSeparator + storageRESTVersion
 	storageRESTPrefix        = minioReservedBucketPath + "/storage"
 )

@@ -1825,8 +1825,8 @@ func (z *erasureServerPools) TransitionObject(ctx context.Context, bucket, objec
 	if z.SinglePool() {
 		return z.serverPools[0].TransitionObject(ctx, bucket, object, opts)
 	}
-	// We don't know the size here set 1GiB atleast.
-	idx, err := z.getPoolIdx(ctx, bucket, object, 1<<30)
+
+	idx, err := z.getPoolIdxExisting(ctx, bucket, object)
 	if err != nil {
 		return err
 	}
@@ -1840,8 +1840,8 @@ func (z *erasureServerPools) RestoreTransitionedObject(ctx context.Context, buck
 	if z.SinglePool() {
 		return z.serverPools[0].RestoreTransitionedObject(ctx, bucket, object, opts)
 	}
-	// We don't know the size here set 1GiB atleast.
-	idx, err := z.getPoolIdx(ctx, bucket, object, 1<<30)
+
+	idx, err := z.getPoolIdxExisting(ctx, bucket, object)
 	if err != nil {
 		return err
 	}
