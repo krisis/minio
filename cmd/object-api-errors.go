@@ -485,6 +485,12 @@ func (e TransitionStorageClassNotFound) Error() string {
 	return "Transition storage class not found "
 }
 
+type InvalidObjectState GenericError
+
+func (e InvalidObjectState) Error() string {
+	return "The operation is not valid for the current state of the object" + e.Bucket + "/" + e.Object
+}
+
 /// Bucket related errors.
 
 // BucketNameInvalid - bucketname provided is invalid.
