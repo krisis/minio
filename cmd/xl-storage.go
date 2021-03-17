@@ -890,18 +890,6 @@ func (s *xlStorage) DeleteVersion(ctx context.Context, volume, path string, fi F
 		return err
 	}
 
-	// Compute the transition status of the object verion given by
-	// fi.VersionID from xlmeta on disk.
-	var transitionStatus string
-	switch xfi, err := xlMeta.ToFileInfo(volume, path, fi.VersionID); err {
-	case nil:
-		transitionStatus = xfi.TransitionStatus
-
-	case errFileVersionNotFound, errFileNotFound: // Possibly a delete-marker is being added
-	default:
-		return err
-	}
-
 	dataDir, lastVersion, err := xlMeta.DeleteVersion(fi)
 	if err != nil {
 		return err
@@ -911,16 +899,18 @@ func (s *xlStorage) DeleteVersion(ctx context.Context, volume, path string, fi F
 	if err != nil {
 		return err
 	}
-	// 1. fi.transitionStatus == Complete for expire restore object
-	// 2. look for restore header
-	if dataDir != "" && (transitionStatus != lifecycle.TransitionComplete || fi.ExpireRestored) {
+
+	if dataDir != "" {
 		filePath := pathJoin(volumeDir, path, dataDir)
 		if err = checkPathLength(filePath); err != nil {
 			return err
 		}
 
+		// Ignore errFileNotFound error in the case of empty
+		// data-directory. This will happen in the case of a
+		// transitioned object.
 		tmpuuid := mustGetUUID()
-		if err = renameAll(filePath, pathutil.Join(s.diskPath, minioMetaTmpDeletedBucket, tmpuuid)); err != nil {
+		if err = renameAll(filePath, pathutil.Join(s.diskPath, minioMetaTmpDeletedBucket, tmpuuid)); err != nil && err != errFileNotFound {
 			return err
 		}
 	}

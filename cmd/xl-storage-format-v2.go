@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	xhttp "github.com/minio/minio/cmd/http"
 	"github.com/minio/minio/cmd/logger"
+	"github.com/minio/minio/pkg/bucket/lifecycle"
 )
 
 var (
@@ -584,10 +585,11 @@ func (z *xlMetaV2) DeleteVersion(fi FileInfo) (string, bool, error) {
 		switch version.Type {
 		case ObjectType:
 			if bytes.Equal(version.ObjectV2.VersionID[:], uv[:]) {
-				if fi.ExpireRestored {
+				switch {
+				case fi.ExpireRestored:
 					return uuid.UUID(version.ObjectV2.DataDir).String(), len(z.Versions) == 0, nil
-				}
-				if fi.TransitionStatus != "" {
+
+				case fi.TransitionStatus == lifecycle.TransitionComplete:
 					z.Versions[i].ObjectV2.MetaSys[ReservedMetadataPrefixLower+TransitionStatus] = []byte(fi.TransitionStatus)
 					z.Versions[i].ObjectV2.MetaSys[ReservedMetadataPrefixLower+TransitionedObjectName] = []byte(fi.TransitionedObjName)
 					z.Versions[i].ObjectV2.MetaSys[ReservedMetadataPrefixLower+TransitionTier] = []byte(fi.TransitionTier)
