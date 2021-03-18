@@ -384,6 +384,30 @@ func (j xlMetaV2DeleteMarker) ToFileInfo(volume, path string) (FileInfo, error) 
 	return fi, nil
 }
 
+// UsesDataDir returns true if this object version uses its data directory for
+// its contents and false otherwise.
+func (j *xlMetaV2Object) UsesDataDir() bool {
+	// Skip if this version is not transitioned, i.e it uses its data directory.
+	if !bytes.Equal(j.MetaSys[ReservedMetadataPrefixLower+TransitionStatus], []byte(lifecycle.TransitionComplete)) {
+		return true
+	}
+
+	// Check if this transitioned object has an ongoing object restore or a restored object.
+	ongoing, expiry, err := parseRestoreHeaderFromMeta(j.MetaUser)
+	switch err {
+	case errRestoreHDRMissing:
+		// Neither this version has an object restore in progress nor it has a restored object.
+		// This means this version isn't using its data directory.
+		return false
+	case nil:
+		// The restored object has expired, it no longer shares its data directory.
+		if now := time.Now(); !ongoing && expiry.Before(now) {
+			return false
+		}
+	}
+	return true
+}
+
 func (j xlMetaV2Object) ToFileInfo(volume, path string) (FileInfo, error) {
 	versionID := ""
 	var uv uuid.UUID
@@ -565,12 +589,21 @@ func (z *xlMetaV2) DeleteVersion(fi FileInfo) (string, bool, error) {
 		}
 	}
 
-	findDataDir := func(dataDir [16]byte, versions []xlMetaV2Version) int {
+	findDataDir := func(v *xlMetaV2Object, versions []xlMetaV2Version) int {
 		var sameDataDirCount int
 		for _, version := range versions {
 			switch version.Type {
 			case ObjectType:
-				if bytes.Equal(version.ObjectV2.DataDir[:], dataDir[:]) {
+				// Skip v if it's included in versions.
+				if bytes.Equal(version.ObjectV2.VersionID[:], v.VersionID[:]) {
+					continue
+				}
+				// Skip if data directories aren't equal.
+				if !bytes.Equal(version.ObjectV2.DataDir[:], v.DataDir[:]) {
+					continue
+				}
+
+				if version.ObjectV2.UsesDataDir() {
 					sameDataDirCount++
 				}
 			}
@@ -587,25 +620,21 @@ func (z *xlMetaV2) DeleteVersion(fi FileInfo) (string, bool, error) {
 			if bytes.Equal(version.ObjectV2.VersionID[:], uv[:]) {
 				switch {
 				case fi.ExpireRestored:
-					return uuid.UUID(version.ObjectV2.DataDir).String(), len(z.Versions) == 0, nil
-
 				case fi.TransitionStatus == lifecycle.TransitionComplete:
 					z.Versions[i].ObjectV2.MetaSys[ReservedMetadataPrefixLower+TransitionStatus] = []byte(fi.TransitionStatus)
 					z.Versions[i].ObjectV2.MetaSys[ReservedMetadataPrefixLower+TransitionedObjectName] = []byte(fi.TransitionedObjName)
 					z.Versions[i].ObjectV2.MetaSys[ReservedMetadataPrefixLower+TransitionTier] = []byte(fi.TransitionTier)
-					return uuid.UUID(version.ObjectV2.DataDir).String(), len(z.Versions) == 0, nil
+				default:
+					z.Versions = append(z.Versions[:i], z.Versions[i+1:]...)
 				}
-				z.Versions = append(z.Versions[:i], z.Versions[i+1:]...)
-				if findDataDir(version.ObjectV2.DataDir, z.Versions) > 0 {
-					if fi.Deleted {
-						z.Versions = append(z.Versions, ventry)
-					}
+
+				if fi.Deleted {
+					z.Versions = append(z.Versions, ventry)
+				}
+				if findDataDir(version.ObjectV2, z.Versions) > 0 {
 					// Found that another version references the same dataDir
 					// we shouldn't remove it, and only remove the version instead
 					return "", len(z.Versions) == 0, nil
-				}
-				if fi.Deleted {
-					z.Versions = append(z.Versions, ventry)
 				}
 				return uuid.UUID(version.ObjectV2.DataDir).String(), len(z.Versions) == 0, nil
 			}
