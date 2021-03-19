@@ -19,6 +19,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"reflect"
 	"strings"
@@ -33,6 +34,7 @@ import (
 	xhttp "github.com/minio/minio/cmd/http"
 	"github.com/minio/minio/cmd/logger"
 	"github.com/minio/minio/pkg/bucket/bandwidth"
+	"github.com/minio/minio/pkg/bucket/lifecycle"
 	"github.com/minio/minio/pkg/bucket/replication"
 	"github.com/minio/minio/pkg/event"
 	iampolicy "github.com/minio/minio/pkg/iam/policy"
@@ -607,7 +609,17 @@ func replicateObject(ctx context.Context, objInfo ObjectInfo, objectAPI ObjectLa
 		logger.LogIf(ctx, err)
 		return
 	}
-	defer gr.Close() // hold read lock for entire transaction
+	var objReader io.ReadCloser = gr
+	if gr.ObjInfo.TransitionStatus == lifecycle.TransitionComplete {
+		gr.Close()
+		objReader, err = getTransitionedObjectReader(ctx, bucket, object, nil, http.Header{}, gr.ObjInfo, ObjectOptions{VersionID: objInfo.VersionID})
+		if err != nil {
+			logger.LogIf(ctx, err)
+			return
+		}
+	}
+
+	defer objReader.Close() // hold read lock for entire transaction
 
 	objInfo = gr.ObjInfo
 	size, err := objInfo.GetActualSize()
@@ -704,7 +716,7 @@ func replicateObject(ctx context.Context, objInfo ObjectInfo, objectAPI ObjectLa
 		}
 
 		// r takes over closing gr.
-		r := bandwidth.NewMonitoredReader(ctx, globalBucketMonitor, objInfo.Bucket, objInfo.Name, gr, headerSize, b, target.BandwidthLimit)
+		r := bandwidth.NewMonitoredReader(ctx, globalBucketMonitor, objInfo.Bucket, objInfo.Name, objReader, headerSize, b, target.BandwidthLimit)
 		if _, err = c.PutObject(ctx, dest.Bucket, object, r, size, "", "", putOpts); err != nil {
 			replicationStatus = replication.Failed
 			logger.LogIf(ctx, fmt.Errorf("Unable to replicate for object %s/%s(%s): %s", bucket, objInfo.Name, objInfo.VersionID, err))
