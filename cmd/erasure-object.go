@@ -1404,7 +1404,7 @@ func (er erasureObjects) RestoreTransitionedObject(ctx context.Context, bucket, 
 		}
 		pReader := NewPutObjReader(hashReader)
 		ropts := putRestoreOpts(bucket, object, opts.Transition.RestoreRequest, oi)
-		ropts.UserDefined[xhttp.AmzRestore] = fmt.Sprintf("ongoing-request=%t, expiry-date=%s", false, opts.Transition.RestoreExpiry.Format(http.TimeFormat))
+		ropts.UserDefined[xhttp.AmzRestore] = completedRestoreObj(opts.Transition.RestoreExpiry).String()
 		_, err = er.PutObject(ctx, bucket, object, pReader, ropts)
 		if err != nil {
 			return er.updateRestoreMetadata(ctx, bucket, object, gr.ObjInfo, ObjectOptions{VersionID: gr.ObjInfo.VersionID}, false, err)
@@ -1420,9 +1420,9 @@ func (er erasureObjects) updateRestoreMetadata(ctx context.Context, bucket, obje
 	oi.metadataOnly = true // Perform only metadata updates.
 
 	if rerr == nil {
-		oi.UserDefined[xhttp.AmzRestore] = fmt.Sprintf("ongoing-request=%t, expiry-date=%s", false, opts.Transition.RestoreExpiry.Format(http.TimeFormat))
+		oi.UserDefined[xhttp.AmzRestore] = completedRestoreObj(opts.Transition.RestoreExpiry).String()
 	} else { // allow retry in the case of failure to restore
-		oi.UserDefined[xhttp.AmzRestore] = fmt.Sprintf("ongoing-request=%t", false)
+		oi.UserDefined[xhttp.AmzRestore] = ongoingRestoreObj().String()
 	}
 	if _, err := er.CopyObject(ctx, bucket, object, bucket, object, oi, ObjectOptions{
 		VersionID: oi.VersionID,

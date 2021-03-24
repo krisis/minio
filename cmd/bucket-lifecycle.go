@@ -529,7 +529,7 @@ func ongoingRestoreObj() restoreObjStatus {
 func completedRestoreObj(expiry time.Time) restoreObjStatus {
 	return restoreObjStatus{
 		ongoing: false,
-		expiry:  expiry,
+		expiry:  expiry.UTC(),
 	}
 }
 
