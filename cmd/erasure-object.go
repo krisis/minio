@@ -25,7 +25,6 @@ import (
 	"path"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/minio/minio-go/v7/pkg/tags"
 	xhttp "github.com/minio/minio/cmd/http"
@@ -184,8 +183,19 @@ func (er erasureObjects) GetObjectNInfo(ctx context.Context, bucket, object stri
 	}
 	if objInfo.TransitionStatus == lifecycle.TransitionComplete {
 		// If transitioned, stream from transition tier unless object is restored locally or restore date is past.
-		restoreHdr, ok := caseInsensitiveMap(objInfo.UserDefined).Lookup(xhttp.AmzRestore)
-		if !ok || !strings.HasPrefix(restoreHdr, "ongoing-request=false") || (!objInfo.RestoreExpires.IsZero() && time.Now().After(objInfo.RestoreExpires)) {
+		var getRemote bool
+		restoreHdr, ok := objInfo.UserDefined[xhttp.AmzRestore]
+		if !ok {
+			getRemote = true
+		}
+		if ok {
+			if restoreStatus, err := parseRestoreObjStatus(restoreHdr); err == nil {
+				if !restoreStatus.Restored() {
+					getRemote = true
+				}
+			}
+		}
+		if getRemote {
 			return getTransitionedObjectReader(ctx, bucket, object, rs, h, objInfo, opts)
 		}
 	}
@@ -1422,7 +1432,7 @@ func (er erasureObjects) updateRestoreMetadata(ctx context.Context, bucket, obje
 	if rerr == nil {
 		oi.UserDefined[xhttp.AmzRestore] = completedRestoreObj(opts.Transition.RestoreExpiry).String()
 	} else { // allow retry in the case of failure to restore
-		oi.UserDefined[xhttp.AmzRestore] = ongoingRestoreObj().String()
+		delete(oi.UserDefined, xhttp.AmzRestore)
 	}
 	if _, err := er.CopyObject(ctx, bucket, object, bucket, object, oi, ObjectOptions{
 		VersionID: oi.VersionID,
