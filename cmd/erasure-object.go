@@ -1396,31 +1396,6 @@ func (er erasureObjects) TransitionObject(ctx context.Context, bucket, object st
 // is restored locally to the bucket on source cluster until the restore expiry date.
 // The copy that was transitioned continues to reside in the transitioned tier.
 func (er erasureObjects) RestoreTransitionedObject(ctx context.Context, bucket, object string, opts ObjectOptions) error {
-	oi, err := er.getObjectInfo(ctx, bucket, object, opts)
-	if err != nil {
-		return err
-	}
-
-	if len(oi.Parts) == 1 {
-		var rs *HTTPRangeSpec
-		gr, err := getTransitionedObjectReader(ctx, bucket, object, rs, http.Header{}, oi, opts)
-		if err != nil {
-			return err
-		}
-		defer gr.Close()
-		hashReader, err := hash.NewReader(gr, gr.ObjInfo.Size, "", "", gr.ObjInfo.Size)
-		if err != nil {
-			return err
-		}
-		pReader := NewPutObjReader(hashReader)
-		ropts := putRestoreOpts(bucket, object, opts.Transition.RestoreRequest, oi)
-		ropts.UserDefined[xhttp.AmzRestore] = completedRestoreObj(opts.Transition.RestoreExpiry).String()
-		_, err = er.PutObject(ctx, bucket, object, pReader, ropts)
-		if err != nil {
-			return er.updateRestoreMetadata(ctx, bucket, object, gr.ObjInfo, ObjectOptions{VersionID: gr.ObjInfo.VersionID}, false, err)
-		}
-		return nil
-	}
 	return er.restoreTransitionedObject(ctx, bucket, object, opts)
 }
 
@@ -1464,7 +1439,23 @@ func (er erasureObjects) restoreTransitionedObject(ctx context.Context, bucket s
 	}
 
 	oi = actualfi.ToObjectInfo(bucket, object)
-
+	if len(oi.Parts) == 1 {
+		var rs *HTTPRangeSpec
+		gr, err := getTransitionedObjectReader(ctx, bucket, object, rs, http.Header{}, oi, opts)
+		if err != nil {
+			return setRestoreHeaderFn(oi, false, toObjectErr(err, bucket, object))
+		}
+		defer gr.Close()
+		hashReader, err := hash.NewReader(gr, gr.ObjInfo.Size, "", "", gr.ObjInfo.Size)
+		if err != nil {
+			return setRestoreHeaderFn(oi, false, toObjectErr(err, bucket, object))
+		}
+		pReader := NewPutObjReader(hashReader)
+		ropts := putRestoreOpts(bucket, object, opts.Transition.RestoreRequest, oi)
+		ropts.UserDefined[xhttp.AmzRestore] = fmt.Sprintf("ongoing-request=%t, expiry-date=%s", false, opts.Transition.RestoreExpiry.Format(http.TimeFormat))
+		_, err = er.PutObject(ctx, bucket, object, pReader, ropts)
+		return setRestoreHeaderFn(oi, false, toObjectErr(err, bucket, object))
+	}
 	uploadID, err := er.NewMultipartUpload(ctx, bucket, object, opts)
 	if err != nil {
 		return setRestoreHeaderFn(oi, false, err)
