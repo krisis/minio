@@ -20,22 +20,18 @@ import (
 	"net/http"
 	"testing"
 	"time"
-
-	xhttp "github.com/minio/minio/cmd/http"
 )
 
 // TestParseRestoreObjStatus tests parseRestoreObjStatus
 func TestParseRestoreObjStatus(t *testing.T) {
 	testCases := []struct {
-		restoreHdr     map[string]string
+		restoreHdr     string
 		expectedStatus restoreObjStatus
 		expectedErr    error
 	}{
 		{
 			// valid: represents a restored object, 'pending' expiry.
-			restoreHdr: map[string]string{
-				xhttp.AmzRestore: "ongoing-request=false, expiry-date=Fri, 21 Dec 2012 00:00:00 GMT",
-			},
+			restoreHdr: "ongoing-request=false, expiry-date=Fri, 21 Dec 2012 00:00:00 GMT",
 			expectedStatus: restoreObjStatus{
 				ongoing: false,
 				expiry:  time.Date(2012, 12, 21, 0, 0, 0, 0, time.UTC),
@@ -44,9 +40,7 @@ func TestParseRestoreObjStatus(t *testing.T) {
 		},
 		{
 			// valid: represents an ongoing restore object request.
-			restoreHdr: map[string]string{
-				xhttp.AmzRestore: "ongoing-request=true",
-			},
+			restoreHdr: "ongoing-request=true",
 			expectedStatus: restoreObjStatus{
 				ongoing: true,
 			},
@@ -54,17 +48,15 @@ func TestParseRestoreObjStatus(t *testing.T) {
 		},
 		{
 			// invalid; ongoing restore object request can't have expiry set on it.
-			restoreHdr: map[string]string{
-				xhttp.AmzRestore: "ongoing-request=true, expiry-date=Fri, 21 Dec 2012 00:00:00 GMT",
-			},
+			restoreHdr:     "ongoing-request=true, expiry-date=Fri, 21 Dec 2012 00:00:00 GMT",
 			expectedStatus: restoreObjStatus{},
 			expectedErr:    errRestoreHDRMalformed,
 		},
 		{
-			// invalid; restore header missing.
-			restoreHdr:     map[string]string{},
+			// invalid; completed restore object request must have expiry set on it.
+			restoreHdr:     "ongoing-request=false",
 			expectedStatus: restoreObjStatus{},
-			expectedErr:    errRestoreHDRMissing,
+			expectedErr:    errRestoreHDRMalformed,
 		},
 	}
 	for i, tc := range testCases {
@@ -85,7 +77,7 @@ func TestRestoreObjStatusRoundTrip(t *testing.T) {
 		completedRestoreObj(time.Now().UTC()),
 	}
 	for i, tc := range testCases {
-		actual, err := parseRestoreObjStatus(map[string]string{xhttp.AmzRestore: tc.String()})
+		actual, err := parseRestoreObjStatus(tc.String())
 		if err != nil {
 			t.Fatalf("Test %d: parse restore object failed: %v", i+1, err)
 		}

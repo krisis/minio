@@ -506,10 +506,7 @@ func putRestoreOpts(bucket, object string, rreq *RestoreObjectRequest, objInfo O
 	}
 }
 
-var (
-	errRestoreHDRMissing   = fmt.Errorf("x-amz-restore header not found")
-	errRestoreHDRMalformed = fmt.Errorf("x-amz-restore header malformed")
-)
+var errRestoreHDRMalformed = fmt.Errorf("x-amz-restore header malformed")
 
 // restoreObjStatus represents a restore-object's status. It can be either
 // ongoing or completed.
@@ -555,16 +552,23 @@ func (r restoreObjStatus) Ongoing() bool {
 	return r.ongoing
 }
 
-// parseRestoreObjStatus parses x-amz-restore header value from meta. If the
-// value is valid it returns a restoreObjStatus value with the status and expiry
-// (if any). Otherwise returns the empty value and an error indicating the parse
-// failure.
-func parseRestoreObjStatus(meta map[string]string) (restoreObjStatus, error) {
-	restoreHdr, ok := meta[xhttp.AmzRestore]
-	if !ok {
-		return restoreObjStatus{}, errRestoreHDRMissing
+// Restored returns true if restored object contents exist in MinIO. Otherwise returns false.
+// The restore operation could be in one of the following states,
+// - in progress (no content on MinIO's disks yet)
+// - completed
+// - completed but expired (again, no content on MinIO's disks)
+func (r restoreObjStatus) Restored() bool {
+	if expiry, ok := r.Expiry(); ok && time.Now().UTC().Before(expiry) {
+		// completed
+		return true
 	}
+	return false // in progress or completed but expired
+}
 
+// parseRestoreObjStatus parses restoreHdr from AmzRestore header. If the value is valid it returns a
+// restoreObjStatus value with the status and expiry (if any). Otherwise returns
+// the empty value and an error indicating the parse failure.
+func parseRestoreObjStatus(restoreHdr string) (restoreObjStatus, error) {
 	tokens := strings.SplitN(restoreHdr, ",", 2)
 	progressTokens := strings.SplitN(tokens[0], "=", 2)
 	if len(progressTokens) != 2 {

@@ -393,13 +393,11 @@ func (j *xlMetaV2Object) UsesDataDir() bool {
 	}
 
 	// Check if this transitioned object has an ongoing object restore or a restored object.
-	restoreStatus, err := parseRestoreObjStatus(j.MetaUser)
-	switch err {
-	case errRestoreHDRMissing:
-		// Neither this version has an object restore in progress nor it has a restored object.
-		// This means this version isn't using its data directory.
+	restoreHdr, ok := j.MetaUser[xhttp.AmzRestore]
+	if !ok {
 		return false
-	case nil:
+	}
+	if restoreStatus, err := parseRestoreObjStatus(restoreHdr); err == nil {
 		if restoreStatus.Ongoing() {
 			return false
 		}
