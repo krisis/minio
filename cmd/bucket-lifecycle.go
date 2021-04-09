@@ -464,6 +464,34 @@ func (r *RestoreObjectRequest) validate(ctx context.Context, objAPI ObjectLayer)
 	return nil
 }
 
+func postOpts(ctx context.Context, r *http.Request, bucket, object string) (opts ObjectOptions, err error) {
+	versioned := globalBucketVersioningSys.Enabled(bucket)
+	vid := strings.TrimSpace(r.URL.Query().Get(xhttp.VersionID))
+	if vid != "" && vid != nullVersionID {
+		_, err := uuid.Parse(vid)
+		if err != nil {
+			logger.LogIf(ctx, err)
+			return opts, InvalidVersionID{
+				Bucket:    bucket,
+				Object:    object,
+				VersionID: vid,
+			}
+		}
+		if !versioned {
+			return opts, InvalidArgument{
+				Bucket: bucket,
+				Object: object,
+				Err:    fmt.Errorf("VersionID specified %s, but versioning not enabled on  %s", opts.VersionID, bucket),
+			}
+		}
+	}
+	return ObjectOptions{
+		Versioned:        versioned,
+		VersionSuspended: globalBucketVersioningSys.Suspended(bucket),
+		VersionID:        vid,
+	}, nil
+}
+
 // set ObjectOptions for PUT call to restore temporary copy of transitioned data
 func putRestoreOpts(bucket, object string, rreq *RestoreObjectRequest, objInfo ObjectInfo) (putOpts ObjectOptions) {
 	meta := make(map[string]string)
