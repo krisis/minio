@@ -147,6 +147,11 @@ func TestXLV2FormatData(t *testing.T) {
 		t.Fatal("data, was not trimmed, bytes left:", len(xl2.data))
 
 	}
+	// Corrupt metadata, last 5 bytes is the checksum, so go a bit further back.
+	trimmed[len(trimmed)-10] += 10
+	if err := xl2.Load(trimmed); err == nil {
+		t.Fatal("metadata corruption not detected")
+	}
 }
 
 // TestUsesDataDir tests xlMetaV2.UsesDataDir
@@ -216,10 +221,5 @@ func TestUsesDataDir(t *testing.T) {
 		if got := tc.xlmeta.UsesDataDir(); got != tc.uses {
 			t.Fatalf("Test %d: Expected %v but got %v for %v", i+1, tc.uses, got, tc.xlmeta)
 		}
-	}
-	// Corrupt metadata, last 5 bytes is the checksum, so go a bit further back.
-	trimmed[len(trimmed)-10] += 10
-	if err := xl2.Load(trimmed); err == nil {
-		t.Fatal("metadata corruption not detected")
 	}
 }

@@ -1338,14 +1338,6 @@ func (er erasureObjects) TransitionObject(ctx context.Context, bucket, object st
 	if err != nil {
 		return err
 	}
-	// Acquire a write lock before deleting the object.
-	lk := er.NewNSLock(bucket, object)
-	ctx, err = lk.GetLock(ctx, globalDeleteOperationTimeout)
-	if err != nil {
-		return err
-	}
-	defer lk.Unlock()
-
 	fi, metaArr, onlineDisks, err := er.getObjectFileInfo(ctx, bucket, object, opts, true)
 	if err != nil {
 		return toObjectErr(err, bucket, object)
@@ -1365,6 +1357,25 @@ func (er erasureObjects) TransitionObject(ctx context.Context, bucket, object st
 	if fi.TransitionStatus == lifecycle.TransitionComplete {
 		return nil
 	}
+	if fi.XLV1 {
+		if _, err = er.HealObject(ctx, bucket, object, "", madmin.HealOpts{}); err != nil {
+			return err
+		}
+		// Fetch FileInfo again. HealObject migrates object the latest
+		// format. Among other things this changes fi.DataDir and
+		// possibly fi.Data (if data is inlined).
+		fi, metaArr, onlineDisks, err = er.getObjectFileInfo(ctx, bucket, object, opts, true)
+		if err != nil {
+			return toObjectErr(err, bucket, object)
+		}
+	}
+	// Acquire a write lock before transitioning the object.
+	lk := er.NewNSLock(bucket, object)
+	ctx, err = lk.GetLock(ctx, globalDeleteOperationTimeout)
+	if err != nil {
+		return err
+	}
+	defer lk.Unlock()
 
 	destObj, err := genTransitionObjName()
 	if err != nil {

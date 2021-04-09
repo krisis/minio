@@ -500,12 +500,12 @@ func (er erasureObjects) healObject(ctx context.Context, bucket string, object s
 	}
 
 	// Rename from tmp location to the actual location.
-	for _, disk := range outDatedDisks {
+	for i, disk := range outDatedDisks {
 		if disk == OfflineDisk {
 			continue
 		}
 
-		dataDir := latestMeta.DataDir
+		dataDir := partsMetadata[i].DataDir
 		if latestMeta.TransitionStatus == lifecycle.TransitionComplete {
 			dataDir = ""
 		}
