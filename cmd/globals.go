@@ -313,6 +313,8 @@ var (
 	globalTierJournal *tierJournal
 
 	globalDebugRemoteTiersImmediately []string
+
+	globalCapacityTiering *tierCandidateCache
 	// Add new variable global values here.
 )
 

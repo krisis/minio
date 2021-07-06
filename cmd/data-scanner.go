@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/bits-and-blooms/bloom/v3"
+	"github.com/dustin/go-humanize"
 	"github.com/minio/madmin-go"
 	"github.com/minio/minio/internal/bucket/lifecycle"
 	"github.com/minio/minio/internal/bucket/replication"
@@ -998,13 +999,20 @@ func (i *scannerItem) applyTierObjSweep(ctx context.Context, o ObjectLayer, meta
 
 }
 
+func (i *scannerItem) applyCapacityTiering(ctx context.Context, _ ObjectLayer, meta actionMeta) {
+	const sixMonths = time.Hour * 24 * 30 * 6
+	if time.Since(meta.oi.ModTime) > sixMonths && meta.oi.Size >= humanize.MiByte {
+		globalCapacityTiering.Add(meta.oi.TierEntry())
+	}
+}
+
 // applyActions will apply lifecycle checks on to a scanned item.
 // The resulting size on disk will always be returned.
 // The metadata will be compared to consensus on the object layer before any changes are applied.
 // If no metadata is supplied, -1 is returned if no action is taken.
 func (i *scannerItem) applyActions(ctx context.Context, o ObjectLayer, meta actionMeta, sizeS *sizeSummary) int64 {
 	i.applyTierObjSweep(ctx, o, meta)
-
+	i.applyCapacityTiering(ctx, o, meta)
 	applied, size := i.applyLifecycle(ctx, o, meta)
 	// For instance, an applied lifecycle means we remove/transitioned an object
 	// from the current deployment, which means we don't have to call healing

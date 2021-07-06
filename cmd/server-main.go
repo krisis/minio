@@ -249,6 +249,9 @@ func newAllSubsystems() {
 
 	// Create new ILM tier configuration subsystem
 	globalTierConfigMgr = NewTierConfigMgr()
+
+	// Create capacity tiering candidate cache
+	globalCapacityTiering = newTierCandidateCache()
 }
 
 func configRetriableErrors(err error) bool {

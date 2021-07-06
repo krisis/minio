@@ -8,6 +8,7 @@ require (
 	github.com/Azure/azure-storage-blob-go v0.10.0
 	github.com/Shopify/sarama v1.27.2
 	github.com/VividCortex/ewma v1.1.1
+	github.com/aalpar/deheap v0.0.0-20200318053559-9a0c2883bd56
 	github.com/alecthomas/participle v0.2.1
 	github.com/bcicen/jstream v1.0.1
 	github.com/beevik/ntp v0.3.0
