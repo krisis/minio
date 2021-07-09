@@ -120,15 +120,20 @@ type transitionState struct {
 	transitionCh chan ObjectInfo
 }
 
-func (t *transitionState) queueTransitionTask(oi ObjectInfo) {
+// queueTransitionTask schedules a transition task for an object identified by
+// oi. Returns true if task was scheduled successfully, false otherwise
+func (t *transitionState) queueTransitionTask(oi ObjectInfo) bool {
 	select {
 	case <-GlobalContext.Done():
 		t.once.Do(func() {
 			close(t.transitionCh)
 		})
 	case t.transitionCh <- oi:
+		return true
 	default:
+
 	}
+	return false
 }
 
 var (

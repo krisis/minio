@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"math"
 	"math/rand"
 	"net/http"
@@ -999,8 +1000,13 @@ func (i *scannerItem) applyTierObjSweep(ctx context.Context, o ObjectLayer, meta
 
 }
 
-func (i *scannerItem) applyCapacityTiering(ctx context.Context, _ ObjectLayer, meta actionMeta) {
+func (i *scannerItem) selectForCapacityTiering(ctx context.Context, _ ObjectLayer, meta actionMeta) {
+	if meta.oi.TransitionStatus == lifecycle.TransitionComplete {
+		return
+	}
+
 	const sixMonths = time.Hour * 24 * 30 * 6
+	fmt.Println("applying cap tiering")
 	if time.Since(meta.oi.ModTime) > sixMonths && meta.oi.Size >= humanize.MiByte {
 		globalCapacityTiering.Add(meta.oi.TierEntry())
 	}
@@ -1012,7 +1018,7 @@ func (i *scannerItem) applyCapacityTiering(ctx context.Context, _ ObjectLayer, m
 // If no metadata is supplied, -1 is returned if no action is taken.
 func (i *scannerItem) applyActions(ctx context.Context, o ObjectLayer, meta actionMeta, sizeS *sizeSummary) int64 {
 	i.applyTierObjSweep(ctx, o, meta)
-	i.applyCapacityTiering(ctx, o, meta)
+	i.selectForCapacityTiering(ctx, o, meta)
 	applied, size := i.applyLifecycle(ctx, o, meta)
 	// For instance, an applied lifecycle means we remove/transitioned an object
 	// from the current deployment, which means we don't have to call healing

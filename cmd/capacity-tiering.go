@@ -8,6 +8,7 @@ import (
 
 	"github.com/aalpar/deheap"
 	"github.com/minio/minio-go/v7/pkg/set"
+	"github.com/minio/minio/internal/bucket/lifecycle"
 	"github.com/minio/minio/internal/color"
 	"github.com/minio/minio/internal/logger"
 	"github.com/minio/pkg/console"
@@ -21,7 +22,7 @@ type tierCandidateCache struct {
 	set        set.StringSet
 	tierHighWM int
 	tierLowWM  int
-	cap        int
+	maxEntries int
 	debug      bool
 }
 
@@ -48,18 +49,15 @@ func (oi ObjectInfo) TierEntry() tierEntry {
 
 func newTierCandidateCache() *tierCandidateCache {
 	entries := new(tierEntries)
-	maxEntry := 10000
-	*entries = make(tierEntries, 0, maxEntry)
-	fmt.Println("len", len(*entries), "cap", cap(*entries))
+	maxEntries := 10000
+	*entries = make(tierEntries, 0, maxEntries)
 	return &tierCandidateCache{
 		entries:    entries,
 		set:        set.NewStringSet(),
-		tierHighWM: 0,
-		tierLowWM:  0,
-		// tierHighWM: 85,
-		// tierLowWM:  75,
-		cap:   maxEntry,
-		debug: serverDebugLog,
+		tierHighWM: 85,
+		tierLowWM:  75,
+		maxEntries: maxEntries,
+		debug:      serverDebugLog,
 	}
 }
 
@@ -71,9 +69,7 @@ func (tc *tierCandidateCache) tier(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			fmt.Println("tierCandidateCache.tier", tc.debug)
 			obj := newObjectLayerFn()
-			// FIXME: use timedValue to periodically refresh storageInfo, usableSpace and dui
 			storageInfo, _ := obj.StorageInfo(ctx)
 			usableSpace := GetTotalUsableCapacity(storageInfo.Disks, storageInfo)
 			dui, err := loadDataUsageFromBackend(ctx, obj)
@@ -91,12 +87,27 @@ func (tc *tierCandidateCache) tier(ctx context.Context) {
 			for n := tc.Len(); n > 0 && until > 0; n-- {
 				e := tc.Remove()
 				until -= float64(e.Size)
+				oi, err := obj.GetObjectInfo(ctx, e.Bucket, e.Name, ObjectOptions{VersionID: e.VersionID})
+				if err != nil {
+					logger.LogIf(ctx, err)
+					continue
+				}
+
+				if oi.TransitionStatus == lifecycle.TransitionComplete {
+					if tc.debug {
+						console.Debugf(capacityTieringLogPrefix+" already tiered %s %s %s", e.Bucket, e.Name, e.VersionID)
+					}
+					continue
+				}
+
 				if tc.debug {
 					console.Debugf(capacityTieringLogPrefix+" tiering %s %s %d %v", e.Bucket, e.Name, e.Size, e.ModTime)
 				}
-				// TODO: transition e to bucket's capacity tier
+				ok := globalTransitionState.queueTransitionTask(oi)
+				if !ok {
+					logger.LogIf(ctx, fmt.Errorf("Failed to enqueue %s %s %s for transition", oi.Bucket, oi.Name, oi.VersionID))
+				}
 			}
-
 		}
 	}
 }
@@ -109,9 +120,7 @@ func (tc *tierCandidateCache) Add(e tierEntry) {
 	if tc.set.Contains(e.hash()) {
 		return
 	}
-	fmt.Println("adding", e)
-
-	if len(*tc.entries) >= tc.cap {
+	if len(*tc.entries) >= tc.maxEntries {
 		// Replace smallest (newer) entry with e
 		deheap.Pop(tc.entries)
 	}
@@ -119,12 +128,12 @@ func (tc *tierCandidateCache) Add(e tierEntry) {
 	tc.set.Add(e.hash())
 }
 
+// Remove removes larger sized (older) objects first.
 func (tc *tierCandidateCache) Remove() tierEntry {
 	tc.Lock()
 	defer tc.Unlock()
 	e := deheap.PopMax(tc.entries).(tierEntry)
 	tc.set.Remove(e.hash())
-	fmt.Println("removing", e)
 	return e
 }
 
