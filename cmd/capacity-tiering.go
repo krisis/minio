@@ -61,6 +61,12 @@ func newTierCandidateCache() *tierCandidateCache {
 	}
 }
 
+func (tc *tierCandidateCache) debugf(fmt string, v ...interface{}) {
+	if tc.debug {
+		console.Debugf(fmt, v)
+	}
+}
+
 func (tc *tierCandidateCache) tier(ctx context.Context) {
 	capacityTieringLogPrefix := color.Green("capacityTiering:")
 	ticker := time.NewTicker(2 * time.Minute)
@@ -86,13 +92,13 @@ func (tc *tierCandidateCache) tier(ctx context.Context) {
 			until := usedSpace - float64(tc.tierLowWM)*0.01*usableSpace
 			for n := tc.Len(); n > 0 && until > 0; n-- {
 				e := tc.Remove()
-				until -= float64(e.Size)
+
+				// check if object is transitioned
 				oi, err := obj.GetObjectInfo(ctx, e.Bucket, e.Name, ObjectOptions{VersionID: e.VersionID})
 				if err != nil {
 					logger.LogIf(ctx, err)
 					continue
 				}
-
 				if oi.TransitionStatus == lifecycle.TransitionComplete {
 					if tc.debug {
 						console.Debugf(capacityTieringLogPrefix+" already tiered %s %s %s", e.Bucket, e.Name, e.VersionID)
@@ -100,13 +106,25 @@ func (tc *tierCandidateCache) tier(ctx context.Context) {
 					continue
 				}
 
-				if tc.debug {
-					console.Debugf(capacityTieringLogPrefix+" tiering %s %s %d %v", e.Bucket, e.Name, e.Size, e.ModTime)
+				// check if object has active ILM rules
+				lc, err := globalBucketMetadataSys.GetLifecycleConfig(e.Bucket)
+				if err != nil {
+					logger.LogIf(ctx, err)
+					continue
 				}
+				if rules := lc.FilterActionableRules(oi.ToLifecycleOpts()); len(rules) != 0 {
+					tc.debugf(capacityTieringLogPrefix+" skip tiering, has active ILM rules: %s %s %d %v", e.Bucket, e.Name, e.Size, e.ModTime)
+					continue
+				}
+
+				tc.debugf(capacityTieringLogPrefix+" tiering %s %s %d %v", e.Bucket, e.Name, e.Size, e.ModTime)
+				// enqueue object for tiering
 				ok := globalTransitionState.queueTransitionTask(oi)
 				if !ok {
 					logger.LogIf(ctx, fmt.Errorf("Failed to enqueue %s %s %s for transition", oi.Bucket, oi.Name, oi.VersionID))
+					continue
 				}
+				until -= float64(e.Size)
 			}
 		}
 	}

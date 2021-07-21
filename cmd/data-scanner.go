@@ -1007,6 +1007,13 @@ func (i *scannerItem) selectForCapacityTiering(ctx context.Context, _ ObjectLaye
 
 	const sixMonths = time.Hour * 24 * 30 * 6
 	fmt.Println("applying cap tiering")
+	// item has active ILM rules, skip caching for capacity tiering.
+	if i.lifeCycle != nil {
+		if rules := i.lifeCycle.FilterActionableRules(meta.oi.ToLifecycleOpts()); len(rules) != 0 {
+			return
+		}
+	}
+
 	if time.Since(meta.oi.ModTime) > sixMonths && meta.oi.Size >= humanize.MiByte {
 		globalCapacityTiering.Add(meta.oi.TierEntry())
 	}
