@@ -117,7 +117,7 @@ func initBackgroundExpiry(ctx context.Context, objectAPI ObjectLayer) {
 type transitionState struct {
 	once sync.Once
 	// add future metrics here
-	transitionCh chan ObjectInfo
+	transitionCh chan transitioner
 }
 
 // queueTransitionTask schedules a transition task for an object identified by
@@ -128,7 +128,21 @@ func (t *transitionState) queueTransitionTask(oi ObjectInfo) bool {
 		t.once.Do(func() {
 			close(t.transitionCh)
 		})
-	case t.transitionCh <- oi:
+	case t.transitionCh <- transitionInfo(oi):
+		return true
+	default:
+
+	}
+	return false
+}
+
+func (t *transitionState) queueTierTask(oi ObjectInfo) bool {
+	select {
+	case <-GlobalContext.Done():
+		t.once.Do(func() {
+			close(t.transitionCh)
+		})
+	case t.transitionCh <- tierInfo(oi):
 		return true
 	default:
 
@@ -147,7 +161,7 @@ func newTransitionState() *transitionState {
 		globalTransitionConcurrent = 1
 	}
 	return &transitionState{
-		transitionCh: make(chan ObjectInfo, 10000),
+		transitionCh: make(chan transitioner, 10000),
 	}
 }
 
@@ -159,12 +173,13 @@ func (t *transitionState) addWorker(ctx context.Context, objectAPI ObjectLayer) 
 			select {
 			case <-ctx.Done():
 				return
-			case oi, ok := <-t.transitionCh:
+			case toi, ok := <-t.transitionCh:
 				if !ok {
 					return
 				}
 
-				if err := transitionObject(ctx, objectAPI, oi); err != nil {
+				if err := toi.TransitionObject(ctx, objectAPI); err != nil {
+					oi := toi.ObjectInfo()
 					logger.LogIf(ctx, fmt.Errorf("Transition failed for %s/%s version:%s with %w", oi.Bucket, oi.Name, oi.VersionID, err))
 				}
 			}
@@ -284,28 +299,6 @@ func genTransitionObjName(bucket string) (string, error) {
 	us := u.String()
 	obj := fmt.Sprintf("%s/%s/%s/%s/%s", globalDeploymentID, bucket, us[0:2], us[2:4], us)
 	return obj, nil
-}
-
-// transition object to target specified by the transition ARN. When an object is transitioned to another
-// storage specified by the transition ARN, the metadata is left behind on source cluster and original content
-// is moved to the transition tier. Note that in the case of encrypted objects, entire encrypted stream is moved
-// to the transition tier without decrypting or re-encrypting.
-func transitionObject(ctx context.Context, objectAPI ObjectLayer, oi ObjectInfo) error {
-	lc, err := globalLifecycleSys.Get(oi.Bucket)
-	if err != nil {
-		return err
-	}
-	opts := ObjectOptions{
-		Transition: TransitionOptions{
-			Status: lifecycle.TransitionPending,
-			Tier:   lc.TransitionTier(oi.ToLifecycleOpts()),
-			ETag:   oi.ETag,
-		},
-		VersionID: oi.VersionID,
-		Versioned: globalBucketVersioningSys.Enabled(oi.Bucket),
-		MTime:     oi.ModTime,
-	}
-	return objectAPI.TransitionObject(ctx, oi.Bucket, oi.Name, opts)
 }
 
 // getTransitionedObjectReader returns a reader from the transitioned tier.

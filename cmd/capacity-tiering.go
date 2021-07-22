@@ -119,7 +119,7 @@ func (tc *tierCandidateCache) tier(ctx context.Context) {
 
 				tc.debugf(capacityTieringLogPrefix+" tiering %s %s %d %v", e.Bucket, e.Name, e.Size, e.ModTime)
 				// enqueue object for tiering
-				ok := globalTransitionState.queueTransitionTask(oi)
+				ok := globalTransitionState.queueTierTask(oi)
 				if !ok {
 					logger.LogIf(ctx, fmt.Errorf("Failed to enqueue %s %s %s for transition", oi.Bucket, oi.Name, oi.VersionID))
 					continue
