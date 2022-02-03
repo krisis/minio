@@ -112,7 +112,13 @@ func TestParseAndValidateLifecycleConfig(t *testing.T) {
 			expectedParsingErr:    nil,
 			expectedValidationErr: nil,
 		},
-		// Lifecycle with max noncurrent versions
+		// Lifecycle with max noncurrent versions  (backward compatibility)
+		{
+			inputConfig:           `<LifecycleConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Rule><ID>rule</ID>><Status>Enabled</Status><Filter></Filter><NoncurrentVersionExpiration><MaxNoncurrentVersions>5</MaxNoncurrentVersions></NoncurrentVersionExpiration></Rule></LifecycleConfiguration>`,
+			expectedParsingErr:    nil,
+			expectedValidationErr: nil,
+		},
+		// Lifecycle with newer noncurrent versions
 		{
 			inputConfig:           `<LifecycleConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Rule><ID>rule</ID>><Status>Enabled</Status><Filter></Filter><NoncurrentVersionExpiration><NewerNoncurrentVersions>5</NewerNoncurrentVersions></NoncurrentVersionExpiration></Rule></LifecycleConfiguration>`,
 			expectedParsingErr:    nil,
