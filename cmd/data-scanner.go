@@ -992,6 +992,9 @@ func (i *scannerItem) applyTierObjSweep(ctx context.Context, o ObjectLayer, oi O
 		}
 		return err
 	}
+
+	logger.LogIf(ctx, fmt.Errorf("deleting remote object: %v", oi))
+
 	// Remove the remote object
 	err := deleteObjectFromRemoteTier(ctx, oi.TransitionedObject.Name, oi.TransitionedObject.VersionID, oi.TransitionedObject.Tier)
 	if ignoreNotFoundErr(err) != nil {

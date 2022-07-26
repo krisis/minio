@@ -18,7 +18,10 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/minio/minio/internal/bucket/lifecycle"
+	"github.com/minio/minio/internal/logger"
 )
 
 // objSweeper determines if a transitioned object needs to be removed from the remote tier.
@@ -103,7 +106,8 @@ func (os *objSweeper) shouldRemoveRemoteObject() (jentry, bool) {
 
 	// 1. If bucket versioning is disabled, remove the remote object.
 	// 2. If bucket versioning is suspended and
-	//    a. version id is specified, remove its remote object.
+	//    a. version id is specified, remove
+	//    its remote object.
 	//    b. version id is not specified, remove null version's remote object if it exists.
 	// 3. If bucket versioning is enabled and
 	//    a. version id is specified, remove its remote object.
@@ -128,6 +132,7 @@ func (os *objSweeper) shouldRemoveRemoteObject() (jentry, bool) {
 // Sweep removes the transitioned object if it's no longer referred to.
 func (os *objSweeper) Sweep() error {
 	if je, ok := os.shouldRemoveRemoteObject(); ok {
+		logger.LogIf(GlobalContext, fmt.Errorf("removing remote object: %v", os))
 		return globalTierJournal.AddEntry(je)
 	}
 	return nil
