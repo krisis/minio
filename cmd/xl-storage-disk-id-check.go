@@ -378,10 +378,10 @@ func (p *xlStorageDiskIDCheck) AppendFile(ctx context.Context, volume string, pa
 	return p.storage.AppendFile(ctx, volume, path, buf)
 }
 
-func (p *xlStorageDiskIDCheck) CreateFile(ctx context.Context, volume, path string, size int64, reader io.Reader) (err error) {
+func (p *xlStorageDiskIDCheck) CreateFile(ctx context.Context, volume, path string, size int64, reader io.Reader) (crc64Hash uint64, err error) {
 	ctx, done, err := p.TrackDiskHealth(ctx, storageMetricCreateFile, volume, path)
 	if err != nil {
-		return err
+		return crc64Hash, err
 	}
 	defer done(&err)
 

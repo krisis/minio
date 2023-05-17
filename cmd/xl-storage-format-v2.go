@@ -61,7 +61,7 @@ const (
 	// Bumping this is informational, but should be done
 	// if any change is made to the data stored, bumping this
 	// will allow to detect the exact version later.
-	xlVersionMinor = 3
+	xlVersionMinor = 4
 )
 
 func init() {
@@ -153,24 +153,25 @@ type xlMetaV2DeleteMarker struct {
 
 // xlMetaV2Object defines the data struct for object journal type
 type xlMetaV2Object struct {
-	VersionID          [16]byte          `json:"ID" msg:"ID"`                                    // Version ID
-	DataDir            [16]byte          `json:"DDir" msg:"DDir"`                                // Data dir ID
-	ErasureAlgorithm   ErasureAlgo       `json:"EcAlgo" msg:"EcAlgo"`                            // Erasure coding algorithm
-	ErasureM           int               `json:"EcM" msg:"EcM"`                                  // Erasure data blocks
-	ErasureN           int               `json:"EcN" msg:"EcN"`                                  // Erasure parity blocks
-	ErasureBlockSize   int64             `json:"EcBSize" msg:"EcBSize"`                          // Erasure block size
-	ErasureIndex       int               `json:"EcIndex" msg:"EcIndex"`                          // Erasure disk index
-	ErasureDist        []uint8           `json:"EcDist" msg:"EcDist"`                            // Erasure distribution
-	BitrotChecksumAlgo ChecksumAlgo      `json:"CSumAlgo" msg:"CSumAlgo"`                        // Bitrot checksum algo
-	PartNumbers        []int             `json:"PartNums" msg:"PartNums"`                        // Part Numbers
-	PartETags          []string          `json:"PartETags" msg:"PartETags,allownil"`             // Part ETags
-	PartSizes          []int64           `json:"PartSizes" msg:"PartSizes"`                      // Part Sizes
-	PartActualSizes    []int64           `json:"PartASizes,omitempty" msg:"PartASizes,allownil"` // Part ActualSizes (compression)
-	PartIndices        [][]byte          `json:"PartIndices,omitempty" msg:"PartIdx,omitempty"`  // Part Indexes (compression)
-	Size               int64             `json:"Size" msg:"Size"`                                // Object version size
-	ModTime            int64             `json:"MTime" msg:"MTime"`                              // Object version modified time
-	MetaSys            map[string][]byte `json:"MetaSys,omitempty" msg:"MetaSys,allownil"`       // Object version internal metadata
-	MetaUser           map[string]string `json:"MetaUsr,omitempty" msg:"MetaUsr,allownil"`       // Object version metadata set by user
+	VersionID          [16]byte          `json:"ID" msg:"ID"`                                           // Version ID
+	DataDir            [16]byte          `json:"DDir" msg:"DDir"`                                       // Data dir ID
+	ErasureAlgorithm   ErasureAlgo       `json:"EcAlgo" msg:"EcAlgo"`                                   // Erasure coding algorithm
+	ErasureM           int               `json:"EcM" msg:"EcM"`                                         // Erasure data blocks
+	ErasureN           int               `json:"EcN" msg:"EcN"`                                         // Erasure parity blocks
+	ErasureBlockSize   int64             `json:"EcBSize" msg:"EcBSize"`                                 // Erasure block size
+	ErasureIndex       int               `json:"EcIndex" msg:"EcIndex"`                                 // Erasure disk index
+	ErasureDist        []uint8           `json:"EcDist" msg:"EcDist"`                                   // Erasure distribution
+	BitrotChecksumAlgo ChecksumAlgo      `json:"CSumAlgo" msg:"CSumAlgo"`                               // Bitrot checksum algo
+	PartNumbers        []int             `json:"PartNums" msg:"PartNums"`                               // Part Numbers
+	PartETags          []string          `json:"PartETags" msg:"PartETags,allownil"`                    // Part ETags
+	PartSizes          []int64           `json:"PartSizes" msg:"PartSizes"`                             // Part Sizes
+	PartActualSizes    []int64           `json:"PartASizes,omitempty" msg:"PartASizes,allownil"`        // Part ActualSizes (compression)
+	PartIndices        [][]byte          `json:"PartIndices,omitempty" msg:"PartIdx,omitempty"`         // Part Indexes (compression)
+	PartCRC64Hashes    [][]uint64        `json:"PartCRC64Hashes,omitempty" msg:"PartCRC64Hs,omitempty"` // Part CRC64 hashes (for all drives)
+	Size               int64             `json:"Size" msg:"Size"`                                       // Object version size
+	ModTime            int64             `json:"MTime" msg:"MTime"`                                     // Object version modified time
+	MetaSys            map[string][]byte `json:"MetaSys,omitempty" msg:"MetaSys,allownil"`              // Object version internal metadata
+	MetaUser           map[string]string `json:"MetaUsr,omitempty" msg:"MetaUsr,allownil"`              // Object version metadata set by user
 }
 
 // xlMetaV2Version describes the journal entry, Type defines
@@ -588,6 +589,9 @@ func (j xlMetaV2Object) ToFileInfo(volume, path string) (FileInfo, error) {
 		if len(j.PartIndices) == len(fi.Parts) {
 			fi.Parts[i].Index = j.PartIndices[i]
 		}
+		if len(j.PartCRC64Hashes) > 0 {
+			fi.Parts[i].CRC64Hashes = append(fi.Parts[i].CRC64Hashes, j.PartCRC64Hashes[i]...)
+		}
 	}
 	fi.Erasure.Checksums = make([]ChecksumInfo, len(j.PartSizes))
 	for i := range fi.Parts {
@@ -734,7 +738,7 @@ func readXLMetaNoData(r io.Reader, size int64) ([]byte, error) {
 		case 0:
 			err = readMore(size)
 			return buf, err
-		case 1, 2, 3:
+		case 1, 2, 3, 4:
 			sz, tmp, err := msgp.ReadBytesHeader(tmp)
 			if err != nil {
 				return nil, fmt.Errorf("readXLMetaNoData(read_meta): uknown metadata version %w", err)
@@ -1543,6 +1547,7 @@ func (x *xlMetaV2) AddVersion(fi FileInfo) error {
 			PartETags:          nil,
 			PartSizes:          make([]int64, len(fi.Parts)),
 			PartActualSizes:    make([]int64, len(fi.Parts)),
+			PartCRC64Hashes:    make([][]uint64, len(fi.Parts)),
 			MetaSys:            make(map[string][]byte),
 			MetaUser:           make(map[string]string, len(fi.Metadata)),
 		}
@@ -1574,6 +1579,7 @@ func (x *xlMetaV2) AddVersion(fi FileInfo) error {
 			if len(ventry.ObjectV2.PartIndices) > 0 {
 				ventry.ObjectV2.PartIndices[i] = fi.Parts[i].Index
 			}
+			ventry.ObjectV2.PartCRC64Hashes[i] = append(ventry.ObjectV2.PartCRC64Hashes[i], fi.Parts[i].CRC64Hashes...)
 		}
 
 		tierFVIDKey := ReservedMetadataPrefixLower + tierFVID

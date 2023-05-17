@@ -23,6 +23,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"hash/crc64"
 	"io"
 	"net/url"
 	"os"
@@ -1848,19 +1849,19 @@ func (c closeWrapper) Close() error {
 }
 
 // CreateFile - creates the file.
-func (s *xlStorage) CreateFile(ctx context.Context, volume, path string, fileSize int64, r io.Reader) (err error) {
+func (s *xlStorage) CreateFile(ctx context.Context, volume, path string, fileSize int64, r io.Reader) (crc64Hash uint64, err error) {
 	if fileSize < -1 {
-		return errInvalidArgument
+		return crc64Hash, errInvalidArgument
 	}
 
 	volumeDir, err := s.getVolDir(volume)
 	if err != nil {
-		return err
+		return crc64Hash, err
 	}
 
 	filePath := pathJoin(volumeDir, path)
 	if err = checkPathLength(filePath); err != nil {
-		return err
+		return crc64Hash, err
 	}
 
 	parentFilePath := pathutil.Dir(filePath)
@@ -1877,12 +1878,12 @@ func (s *xlStorage) CreateFile(ctx context.Context, volume, path string, fileSiz
 	return s.writeAllDirect(ctx, filePath, fileSize, r, os.O_CREATE|os.O_WRONLY|os.O_EXCL)
 }
 
-func (s *xlStorage) writeAllDirect(ctx context.Context, filePath string, fileSize int64, r io.Reader, flags int) (err error) {
+func (s *xlStorage) writeAllDirect(ctx context.Context, filePath string, fileSize int64, r io.Reader, flags int) (crc64Hash uint64, err error) {
 	// Create top level directories if they don't exist.
 	// with mode 0777 mkdir honors system umask.
 	parentFilePath := pathutil.Dir(filePath)
 	if err = mkdirAll(parentFilePath, 0o777); err != nil {
-		return osErrToFileErr(err)
+		return crc64Hash, osErrToFileErr(err)
 	}
 
 	odirectEnabled := s.oDirect
@@ -1893,7 +1894,7 @@ func (s *xlStorage) writeAllDirect(ctx context.Context, filePath string, fileSiz
 		w, err = OpenFile(filePath, flags, 0o666)
 	}
 	if err != nil {
-		return osErrToFileErr(err)
+		return crc64Hash, osErrToFileErr(err)
 	}
 	defer w.Close()
 
@@ -1911,24 +1912,26 @@ func (s *xlStorage) writeAllDirect(ctx context.Context, filePath string, fileSiz
 		defer xioutil.ODirectPoolLarge.Put(bufp)
 	}
 
+	hashWriter := crc64.New(crc64.MakeTable(crc64.ISO))
+	tee := io.TeeReader(r, hashWriter)
 	var written int64
 	if odirectEnabled {
-		written, err = xioutil.CopyAligned(diskHealthWriter(ctx, w), r, *bufp, fileSize, w)
+		written, err = xioutil.CopyAligned(diskHealthWriter(ctx, w), tee, *bufp, fileSize, w)
 	} else {
-		written, err = io.CopyBuffer(diskHealthWriter(ctx, w), r, *bufp)
+		written, err = io.CopyBuffer(diskHealthWriter(ctx, w), tee, *bufp)
 	}
 	if err != nil {
-		return err
+		return crc64Hash, err
 	}
 
 	if written < fileSize && fileSize >= 0 {
-		return errLessData
+		return crc64Hash, errLessData
 	} else if written > fileSize && fileSize >= 0 {
-		return errMoreData
+		return crc64Hash, errMoreData
 	}
-
+	crc64Hash = hashWriter.Sum64()
 	// Only interested in flushing the size_t not mtime/atime
-	return Fdatasync(w)
+	return crc64Hash, Fdatasync(w)
 }
 
 func (s *xlStorage) writeAll(ctx context.Context, volume string, path string, b []byte, sync bool) (err error) {
@@ -1953,7 +1956,8 @@ func (s *xlStorage) writeAll(ctx context.Context, volume string, path string, b 
 		// This is an optimization mainly to ensure faster I/O.
 		if len(b) > xioutil.DirectioAlignSize {
 			r := bytes.NewReader(b)
-			return s.writeAllDirect(ctx, filePath, r.Size(), r, flags)
+			_, err = s.writeAllDirect(ctx, filePath, r.Size(), r, flags)
+			return err
 		}
 		w, err = s.openFileSync(filePath, flags)
 	} else {

@@ -126,7 +126,7 @@ FLAGS:
 					return nil, err
 				}
 				data = b
-			case 3:
+			case 3, 4:
 				v, b, err := msgp.ReadBytesZC(b)
 				if err != nil {
 					return nil, err

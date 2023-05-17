@@ -37,6 +37,7 @@ type streamingBitrotWriter struct {
 	iow          io.WriteCloser
 	closeWithErr func(err error) error
 	h            hash.Hash
+	crc64Hash    uint64
 	shardSize    int64
 	canClose     *sync.WaitGroup
 }
@@ -102,7 +103,9 @@ func newStreamingBitrotWriter(disk StorageAPI, volume, filePath string, length i
 			bitrotSumsTotalSize := ceilFrac(length, shardSize) * int64(h.Size()) // Size used for storing bitrot checksums.
 			totalFileSize = bitrotSumsTotalSize + length
 		}
-		r.CloseWithError(disk.CreateFile(context.TODO(), volume, filePath, totalFileSize, r))
+		var err error
+		bw.crc64Hash, err = disk.CreateFile(context.TODO(), volume, filePath, totalFileSize, r)
+		r.CloseWithError(err)
 		bw.canClose.Done()
 	}()
 	return bw

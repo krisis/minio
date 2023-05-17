@@ -729,14 +729,28 @@ func (er erasureObjects) PutObjectPart(ctx context.Context, bucket, object, uplo
 		index = opts.IndexCB()
 	}
 
+	crc64HashWriterSum := func(w io.Writer) uint64 {
+		if bw, ok := w.(*streamingBitrotWriter); ok {
+			return bw.crc64Hash
+		}
+		return 0
+	}
+	crc64Hashes := make([]uint64, len(onlineDisks))
+	for i, w := range writers {
+		if w == nil {
+			continue
+		}
+		crc64Hashes[i] = crc64HashWriterSum(w)
+	}
 	partInfo := ObjectPartInfo{
-		Number:     partID,
-		ETag:       md5hex,
-		Size:       n,
-		ActualSize: data.ActualSize(),
-		ModTime:    UTCNow(),
-		Index:      index,
-		Checksums:  r.ContentCRC(),
+		Number:      partID,
+		ETag:        md5hex,
+		Size:        n,
+		ActualSize:  data.ActualSize(),
+		ModTime:     UTCNow(),
+		Index:       index,
+		Checksums:   r.ContentCRC(),
+		CRC64Hashes: crc64Hashes,
 	}
 
 	fi.Parts = []ObjectPartInfo{partInfo}
@@ -1062,6 +1076,7 @@ func (er erasureObjects) CompleteMultipartUpload(ctx context.Context, bucket str
 
 		// Add the current part.
 		fi.AddObjectPart(partI.Number, partI.ETag, partI.Size, partI.ActualSize, partI.ModTime, partI.Index, partI.Checksums)
+		fi.Parts[i].CRC64Hashes = append(fi.Parts[i].CRC64Hashes, partI.CRC64Hashes...)
 	}
 
 	// Calculate full object size.
@@ -1158,6 +1173,7 @@ func (er erasureObjects) CompleteMultipartUpload(ctx context.Context, bucket str
 			Index:      expPart.Index,
 			Checksums:  nil, // Not transferred since we do not need it.
 		}
+		fi.Parts[i].CRC64Hashes = append(fi.Parts[i].CRC64Hashes, expPart.CRC64Hashes...)
 	}
 
 	if opts.WantChecksum != nil {

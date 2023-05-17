@@ -41,8 +41,8 @@ func (a badDisk) ReadFileStream(ctx context.Context, volume, path string, offset
 	return nil, errFaultyDisk
 }
 
-func (a badDisk) CreateFile(ctx context.Context, volume, path string, size int64, reader io.Reader) error {
-	return errFaultyDisk
+func (a badDisk) CreateFile(ctx context.Context, volume, path string, size int64, reader io.Reader) (uint64, error) {
+	return 0, errFaultyDisk
 }
 
 func (badDisk) Hostname() string {

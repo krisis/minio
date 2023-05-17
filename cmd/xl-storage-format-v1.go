@@ -160,13 +160,14 @@ const (
 // ObjectPartInfo Info of each part kept in the multipart metadata
 // file after CompleteMultipartUpload() is called.
 type ObjectPartInfo struct {
-	ETag       string            `json:"etag,omitempty"`
-	Number     int               `json:"number"`
-	Size       int64             `json:"size"`       // Size of the part on the disk.
-	ActualSize int64             `json:"actualSize"` // Original size of the part without compression or encryption bytes.
-	ModTime    time.Time         `json:"modTime"`    // Date and time at which the part was uploaded.
-	Index      []byte            `json:"index,omitempty" msg:"index,omitempty"`
-	Checksums  map[string]string `json:"crc,omitempty" msg:"crc,omitempty"` // Content Checksums
+	ETag        string            `json:"etag,omitempty"`
+	Number      int               `json:"number"`
+	Size        int64             `json:"size"`       // Size of the part on the disk.
+	ActualSize  int64             `json:"actualSize"` // Original size of the part without compression or encryption bytes.
+	ModTime     time.Time         `json:"modTime"`    // Date and time at which the part was uploaded.
+	Index       []byte            `json:"index,omitempty" msg:"index,omitempty"`
+	Checksums   map[string]string `json:"crc,omitempty" msg:"crc,omitempty"`               // Content Checksums
+	CRC64Hashes []uint64          `json:"crcHashes,omitempty" msg:"crc64Hashes,omitempty"` // CRC64 hashes on all drives
 }
 
 // ChecksumInfo - carries checksums of individual scattered parts per disk.

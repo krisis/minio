@@ -374,7 +374,7 @@ func (client *storageRESTClient) AppendFile(ctx context.Context, volume string, 
 	return err
 }
 
-func (client *storageRESTClient) CreateFile(ctx context.Context, volume, path string, size int64, reader io.Reader) error {
+func (client *storageRESTClient) CreateFile(ctx context.Context, volume, path string, size int64, reader io.Reader) (uint64, error) {
 	values := make(url.Values)
 	values.Set(storageRESTVolume, volume)
 	values.Set(storageRESTFilePath, path)
@@ -382,10 +382,11 @@ func (client *storageRESTClient) CreateFile(ctx context.Context, volume, path st
 	respBody, err := client.call(ctx, storageRESTMethodCreateFile, values, io.NopCloser(reader), size)
 	defer xhttp.DrainBody(respBody)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	_, err = waitForHTTPResponse(respBody)
-	return err
+	var crc64Hash uint64
+	_, crc64Hash, err = waitForHTTPResponseHash(respBody)
+	return crc64Hash, err
 }
 
 func (client *storageRESTClient) WriteMetadata(ctx context.Context, volume, path string, fi FileInfo) error {

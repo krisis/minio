@@ -186,9 +186,9 @@ func (d *naughtyDisk) ReadFileStream(ctx context.Context, volume, path string, o
 	return d.disk.ReadFileStream(ctx, volume, path, offset, length)
 }
 
-func (d *naughtyDisk) CreateFile(ctx context.Context, volume, path string, size int64, reader io.Reader) error {
+func (d *naughtyDisk) CreateFile(ctx context.Context, volume, path string, size int64, reader io.Reader) (uint64, error) {
 	if err := d.calcError(); err != nil {
-		return err
+		return 0, err
 	}
 	return d.disk.CreateFile(ctx, volume, path, size, reader)
 }

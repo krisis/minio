@@ -635,6 +635,25 @@ func (z *ObjectPartInfo) DecodeMsg(dc *msgp.Reader) (err error) {
 				}
 				z.Checksums[za0001] = za0002
 			}
+		case "crc64Hashes":
+			var zb0003 uint32
+			zb0003, err = dc.ReadArrayHeader()
+			if err != nil {
+				err = msgp.WrapError(err, "CRC64Hashes")
+				return
+			}
+			if cap(z.CRC64Hashes) >= int(zb0003) {
+				z.CRC64Hashes = (z.CRC64Hashes)[:zb0003]
+			} else {
+				z.CRC64Hashes = make([]uint64, zb0003)
+			}
+			for za0003 := range z.CRC64Hashes {
+				z.CRC64Hashes[za0003], err = dc.ReadUint64()
+				if err != nil {
+					err = msgp.WrapError(err, "CRC64Hashes", za0003)
+					return
+				}
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -649,8 +668,8 @@ func (z *ObjectPartInfo) DecodeMsg(dc *msgp.Reader) (err error) {
 // EncodeMsg implements msgp.Encodable
 func (z *ObjectPartInfo) EncodeMsg(en *msgp.Writer) (err error) {
 	// omitempty: check for empty values
-	zb0001Len := uint32(7)
-	var zb0001Mask uint8 /* 7 bits */
+	zb0001Len := uint32(8)
+	var zb0001Mask uint8 /* 8 bits */
 	_ = zb0001Mask
 	if z.Index == nil {
 		zb0001Len--
@@ -659,6 +678,10 @@ func (z *ObjectPartInfo) EncodeMsg(en *msgp.Writer) (err error) {
 	if z.Checksums == nil {
 		zb0001Len--
 		zb0001Mask |= 0x40
+	}
+	if z.CRC64Hashes == nil {
+		zb0001Len--
+		zb0001Mask |= 0x80
 	}
 	// variable map header, size zb0001Len
 	err = en.Append(0x80 | uint8(zb0001Len))
@@ -754,6 +777,25 @@ func (z *ObjectPartInfo) EncodeMsg(en *msgp.Writer) (err error) {
 			}
 		}
 	}
+	if (zb0001Mask & 0x80) == 0 { // if not empty
+		// write "crc64Hashes"
+		err = en.Append(0xab, 0x63, 0x72, 0x63, 0x36, 0x34, 0x48, 0x61, 0x73, 0x68, 0x65, 0x73)
+		if err != nil {
+			return
+		}
+		err = en.WriteArrayHeader(uint32(len(z.CRC64Hashes)))
+		if err != nil {
+			err = msgp.WrapError(err, "CRC64Hashes")
+			return
+		}
+		for za0003 := range z.CRC64Hashes {
+			err = en.WriteUint64(z.CRC64Hashes[za0003])
+			if err != nil {
+				err = msgp.WrapError(err, "CRC64Hashes", za0003)
+				return
+			}
+		}
+	}
 	return
 }
 
@@ -761,8 +803,8 @@ func (z *ObjectPartInfo) EncodeMsg(en *msgp.Writer) (err error) {
 func (z *ObjectPartInfo) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 	// omitempty: check for empty values
-	zb0001Len := uint32(7)
-	var zb0001Mask uint8 /* 7 bits */
+	zb0001Len := uint32(8)
+	var zb0001Mask uint8 /* 8 bits */
 	_ = zb0001Mask
 	if z.Index == nil {
 		zb0001Len--
@@ -771,6 +813,10 @@ func (z *ObjectPartInfo) MarshalMsg(b []byte) (o []byte, err error) {
 	if z.Checksums == nil {
 		zb0001Len--
 		zb0001Mask |= 0x40
+	}
+	if z.CRC64Hashes == nil {
+		zb0001Len--
+		zb0001Mask |= 0x80
 	}
 	// variable map header, size zb0001Len
 	o = append(o, 0x80|uint8(zb0001Len))
@@ -804,6 +850,14 @@ func (z *ObjectPartInfo) MarshalMsg(b []byte) (o []byte, err error) {
 		for za0001, za0002 := range z.Checksums {
 			o = msgp.AppendString(o, za0001)
 			o = msgp.AppendString(o, za0002)
+		}
+	}
+	if (zb0001Mask & 0x80) == 0 { // if not empty
+		// string "crc64Hashes"
+		o = append(o, 0xab, 0x63, 0x72, 0x63, 0x36, 0x34, 0x48, 0x61, 0x73, 0x68, 0x65, 0x73)
+		o = msgp.AppendArrayHeader(o, uint32(len(z.CRC64Hashes)))
+		for za0003 := range z.CRC64Hashes {
+			o = msgp.AppendUint64(o, z.CRC64Hashes[za0003])
 		}
 	}
 	return
@@ -893,6 +947,25 @@ func (z *ObjectPartInfo) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				}
 				z.Checksums[za0001] = za0002
 			}
+		case "crc64Hashes":
+			var zb0003 uint32
+			zb0003, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "CRC64Hashes")
+				return
+			}
+			if cap(z.CRC64Hashes) >= int(zb0003) {
+				z.CRC64Hashes = (z.CRC64Hashes)[:zb0003]
+			} else {
+				z.CRC64Hashes = make([]uint64, zb0003)
+			}
+			for za0003 := range z.CRC64Hashes {
+				z.CRC64Hashes[za0003], bts, err = msgp.ReadUint64Bytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "CRC64Hashes", za0003)
+					return
+				}
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -914,6 +987,7 @@ func (z *ObjectPartInfo) Msgsize() (s int) {
 			s += msgp.StringPrefixSize + len(za0001) + msgp.StringPrefixSize + len(za0002)
 		}
 	}
+	s += 12 + msgp.ArrayHeaderSize + (len(z.CRC64Hashes) * (msgp.Uint64Size))
 	return
 }
 

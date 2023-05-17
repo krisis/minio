@@ -22,6 +22,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	stdHash "hash"
+	"hash/crc64"
 	"io"
 	"net/http"
 	"path"
@@ -1199,19 +1201,25 @@ func (er erasureObjects) putObject(ctx context.Context, bucket string, object st
 	shardFileSize := erasure.ShardFileSize(data.Size())
 	writers := make([]io.Writer, len(onlineDisks))
 	var inlineBuffers []*bytes.Buffer
+	var crcHashes []stdHash.Hash64
+
 	if shardFileSize >= 0 {
 		if !opts.Versioned && shardFileSize < smallFileThreshold {
 			inlineBuffers = make([]*bytes.Buffer, len(onlineDisks))
+			crcHashes = make([]stdHash.Hash64, len(onlineDisks))
 		} else if shardFileSize < smallFileThreshold/8 {
 			inlineBuffers = make([]*bytes.Buffer, len(onlineDisks))
+			crcHashes = make([]stdHash.Hash64, len(onlineDisks))
 		}
 	} else {
 		// If compressed, use actual size to determine.
 		if sz := erasure.ShardFileSize(data.ActualSize()); sz > 0 {
 			if !opts.Versioned && sz < smallFileThreshold {
 				inlineBuffers = make([]*bytes.Buffer, len(onlineDisks))
+				crcHashes = make([]stdHash.Hash64, len(onlineDisks))
 			} else if sz < smallFileThreshold/8 {
 				inlineBuffers = make([]*bytes.Buffer, len(onlineDisks))
+				crcHashes = make([]stdHash.Hash64, len(onlineDisks))
 			}
 		}
 	}
@@ -1230,7 +1238,9 @@ func (er erasureObjects) putObject(ctx context.Context, bucket string, object st
 				sz = data.ActualSize()
 			}
 			inlineBuffers[i] = bytes.NewBuffer(make([]byte, 0, sz))
-			writers[i] = newStreamingBitrotWriterBuffer(inlineBuffers[i], DefaultBitrotAlgorithm, erasure.ShardSize())
+			crcHashes[i] = crc64.New(crc64.MakeTable(crc64.ISO))
+			mw := io.MultiWriter(inlineBuffers[i], crcHashes[i])
+			writers[i] = newStreamingBitrotWriterBuffer(mw, DefaultBitrotAlgorithm, erasure.ShardSize())
 			continue
 		}
 
@@ -1282,6 +1292,18 @@ func (er erasureObjects) putObject(ctx context.Context, bucket string, object st
 		modTime = UTCNow()
 	}
 
+	crc64HashWriterSum := func(w io.Writer, idx int) uint64 {
+		if idx < len(crcHashes) {
+			ret := crcHashes[idx].Sum64()
+			return ret
+		}
+
+		if bw, ok := w.(*streamingBitrotWriter); ok {
+			return bw.crc64Hash
+		}
+		return 0
+	}
+	crc64Hashes := make([]uint64, len(onlineDisks))
 	for i, w := range writers {
 		if w == nil {
 			onlineDisks[i] = nil
@@ -1292,6 +1314,8 @@ func (er erasureObjects) putObject(ctx context.Context, bucket string, object st
 		} else {
 			partsMetadata[i].Data = nil
 		}
+
+		crc64Hashes[i] = crc64HashWriterSum(w, i)
 		// No need to add checksum to part. We already have it on the object.
 		partsMetadata[i].AddObjectPart(1, "", n, data.ActualSize(), modTime, compIndex, nil)
 		partsMetadata[i].Erasure.AddChecksumInfo(ChecksumInfo{
@@ -1323,6 +1347,7 @@ func (er erasureObjects) putObject(ctx context.Context, bucket string, object st
 	// Update `xl.meta` content on each disks.
 	for index := range partsMetadata {
 		partsMetadata[index].Metadata = userDefined
+		partsMetadata[index].Parts[0].CRC64Hashes = crc64Hashes // there is only one part
 		partsMetadata[index].Size = n
 		partsMetadata[index].ModTime = modTime
 	}

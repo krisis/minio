@@ -1,4 +1,4 @@
-// Copyright (c) 2015-2021 MinIO, Inc.
+// Copyright (c) 2015-2023 MinIO, Inc.
 //
 // This file is part of MinIO Object Storage stack
 //
@@ -351,8 +351,13 @@ func (s *storageRESTServer) CreateFileHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	done, body := keepHTTPReqResponseAlive(w, r)
-	done(s.storage.CreateFile(r.Context(), volume, filePath, int64(fileSize), body))
+	done, body := keepHTTPReqResponseAliveHash(w, r)
+	crc64Hash, err := s.storage.CreateFile(r.Context(), volume, filePath, int64(fileSize), body)
+	if err != nil {
+		done(crc64Hash, err)
+		return
+	}
+	done(crc64Hash, err)
 }
 
 // DeleteVersion delete updated metadata.
@@ -814,6 +819,84 @@ func (c *closeNotifier) Close() error {
 	return c.rc.Close()
 }
 
+// keepHTTPReqResponseAliveHash differs from keepHTTPReqResponse in that it can
+// send a crc64 hash along with an error on the response body
+func keepHTTPReqResponseAliveHash(w http.ResponseWriter, r *http.Request) (resp func(hash uint64, err error), body io.ReadCloser) {
+	type hashNErr struct {
+		hash uint64
+		err  error
+	}
+	encode := func(h hashNErr) []byte {
+		var prefix byte
+		if h.err != nil {
+			prefix = 1
+		}
+		buf := []byte{prefix}
+		buf = msgp.AppendUint64(buf, h.hash)
+		if h.err != nil {
+			buf = msgp.AppendStringFromBytes(buf, []byte(h.err.Error()))
+		}
+		return buf
+	}
+	bodyDoneCh := make(chan struct{})
+	doneCh := make(chan hashNErr)
+	ctx := r.Context()
+	go func() {
+		canWrite := true
+		write := func(b []byte) {
+			if canWrite {
+				n, err := w.Write(b)
+				if err != nil || n != len(b) {
+					canWrite = false
+				}
+			}
+		}
+		// Wait for body to be read.
+		select {
+		case <-ctx.Done():
+		case <-bodyDoneCh:
+		case h := <-doneCh:
+			write(encode(h))
+			close(doneCh)
+			return
+		}
+		defer close(doneCh)
+		// Initiate ticker after body has been read.
+		ticker := time.NewTicker(time.Second * 10)
+		for {
+			select {
+			case <-ticker.C:
+				// Response not ready, write a filler byte.
+				write([]byte{32})
+				if canWrite {
+					w.(http.Flusher).Flush()
+				}
+			case h := <-doneCh:
+				write(encode(h))
+				ticker.Stop()
+				return
+			}
+		}
+	}()
+	return func(hash uint64, err error) {
+		if doneCh == nil {
+			return
+		}
+
+		// Indicate we are ready to write.
+		doneCh <- hashNErr{
+			hash: hash,
+			err:  err,
+		}
+
+		// Wait for channel to be closed so we don't race on writes.
+		<-doneCh
+
+		// Clear so we can be called multiple times without crashing.
+		doneCh = nil
+	}, &closeNotifier{rc: r.Body, done: bodyDoneCh}
+}
+
 // keepHTTPReqResponseAlive can be used to avoid timeouts with long storage
 // operations, such as bitrot verification or data usage scanning.
 // Every 10 seconds a space character is sent.
@@ -971,6 +1054,57 @@ func waitForHTTPResponse(respBody io.Reader) (io.Reader, error) {
 			continue
 		default:
 			return nil, fmt.Errorf("unexpected filler byte: %d", b)
+		}
+	}
+}
+
+// waitForHTTPResponseHash differs from waitHTTPResponseHash in that it expects
+// a crc64 hash in the respBody
+func waitForHTTPResponseHash(respBody io.Reader) (io.Reader, uint64, error) {
+	reader := bufio.NewReader(respBody)
+	for {
+		b, err := reader.ReadByte()
+		if err != nil {
+			return nil, 0, err
+		}
+		// Check if we have a response ready or a filler byte.
+		switch b {
+		case 0:
+			hashNErrBytes, err := io.ReadAll(reader)
+			if err != nil {
+				return nil, 0, err
+			}
+			var hash uint64
+			hash, _, err = msgp.ReadUint64Bytes(hashNErrBytes)
+			if err != nil {
+				return nil, 0, err
+			}
+			return nil, hash, nil
+		case 1:
+			hashNErrBytes, err := io.ReadAll(reader)
+			if err != nil {
+				return nil, 0, err
+			}
+
+			var hash uint64
+			hash, hashNErrBytes, err = msgp.ReadUint64Bytes(hashNErrBytes)
+			if err != nil {
+				return nil, 0, err
+			}
+
+			var errStr string
+			errStr, _, err = msgp.ReadStringBytes(hashNErrBytes)
+			if err != nil {
+				return nil, 0, err
+			}
+			if len(errStr) > 0 {
+				err = errors.New(errStr)
+			}
+			return nil, hash, err
+		case 32:
+			continue
+		default:
+			return nil, 0, fmt.Errorf("unexpected filler byte: %d", b)
 		}
 	}
 }
