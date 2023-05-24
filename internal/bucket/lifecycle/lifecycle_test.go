@@ -529,6 +529,42 @@ func TestEval(t *testing.T) {
 			objectModTime:  time.Now().UTC().Add(-15 * 24 * time.Hour),
 			expectedAction: DeleteAction,
 		},
+
+		{
+			inputConfig: `<LifecycleConfiguration>
+                            <Rule>
+                              <ID>expiry_noncurrent_expired_deletemarker</ID>
+                              <Status>Enabled</Status>
+                              <Expiration>
+                                <ExpiredObjectDeleteMarker>true</ExpiredObjectDeleteMarker>
+                              </Expiration>
+                              <NoncurrentVersionExpiration>
+                                <NoncurrentDays>1</NoncurrentDays>
+                              </NoncurrentVersionExpiration>
+                            </Rule>
+                            <Rule>
+                              <ID>transition_noncurrent</ID>
+                              <Status>Enabled</Status>
+                              <NoncurrentVersionTransition>
+                                <StorageClass>WARM-TIER-1</StorageClass>
+                                <NoncurrentDays>7</NoncurrentDays>
+                              </NoncurrentVersionTransition>
+                            </Rule>
+                            <Rule>
+                              <ID>transition_current</ID>
+                              <Status>Enabled</Status>
+                              <Transition>
+                                <StorageClass>WARM-TIER-1</StorageClass>
+                                <Days>30</Days>
+                              </Transition>
+                            </Rule>
+                          </LifecycleConfiguration>`,
+			objectName:             "foo/obj-1",
+			objectModTime:          time.Now().UTC().Add(-1 * 24 * time.Hour),
+			objectSuccessorModTime: time.Now().UTC().Add(-2 * 24 * time.Hour),
+			isNoncurrent:           true,
+			expectedAction:         DeleteVersionAction,
+		},
 	}
 
 	for _, tc := range testCases {
