@@ -440,7 +440,7 @@ func writeUniqueFileInfo(ctx context.Context, disks []StorageAPI, bucket, prefix
 	return evalDisks(disks, mErrs), err
 }
 
-func commonParity(parities []int, defaultParityCount int) int {
+func commonParity(parities []int, _ int) int {
 	N := len(parities)
 
 	occMap := make(map[int]int)
@@ -451,17 +451,11 @@ func commonParity(parities []int, defaultParityCount int) int {
 	var maxOcc, cparity int
 	for parity, occ := range occMap {
 		if parity == -1 {
-			// Ignore non defined parity
+			// Ignore undefined parity
 			continue
 		}
 
-		readQuorum := N - parity
-		if defaultParityCount > 0 && parity == 0 {
-			// In this case, parity == 0 implies that this object version is a
-			// delete marker
-			readQuorum = N/2 + 1
-		}
-		if occ < readQuorum {
+		if readQuorum := N - parity; occ < readQuorum {
 			// Ignore this parity since we don't have enough shards for read quorum
 			continue
 		}
@@ -473,7 +467,7 @@ func commonParity(parities []int, defaultParityCount int) int {
 	}
 
 	if maxOcc == 0 {
-		// Did not found anything useful
+		// Did not find anything useful
 		return -1
 	}
 	return cparity

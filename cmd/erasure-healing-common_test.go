@@ -753,6 +753,8 @@ func TestCommonParities(t *testing.T) {
 
 	tests := []struct {
 		fi1, fi2 FileInfo
+		errs     []error
+		noQuorum bool
 	}{
 		{
 			fi1: fi1,
@@ -762,8 +764,30 @@ func TestCommonParities(t *testing.T) {
 			fi1: fi1,
 			fi2: fiDel,
 		},
+		{
+			// In this case, a delete marker version wasn't deleted in
+			// write-quorum number nodes, leaving behind a 'readable' delete
+			// marker. ListObjects would return this as a valid version, so
+			// should HeadObject. listObjectParities/commonParity functions
+			// should compute required read-quorum differntly for delete markers
+			// (Delete markers don't have any data associated with them and
+			// don't need to be present in fi.Erasure.DataBlocks drives)
+			fi1: fi1,
+			fi2: fiDel,
+		},
+		{
+			// In this case, we don't read quorum on fiDel too
+			fi1: fi1,
+			fi2: fiDel,
+			errs: []error{nil, errFileNotFound, nil, errFileNotFound, nil, errFileNotFound, nil,
+				errFileNotFound, nil, errFileNotFound, errFileNotFound, errFileNotFound},
+			noQuorum: true,
+		},
 	}
 	for idx, test := range tests {
+		if idx < 2 {
+			continue
+		}
 		var metaArr []FileInfo
 		for i := 0; i < 12; i++ {
 			fi := test.fi1
@@ -773,16 +797,35 @@ func TestCommonParities(t *testing.T) {
 			metaArr = append(metaArr, fi)
 		}
 
-		parities := listObjectParities(metaArr, make([]error, len(metaArr)))
+		if test.errs == nil {
+			test.errs = make([]error, len(metaArr))
+		}
+
+		parities := listObjectParities(metaArr, test.errs)
 		parity := commonParity(parities, 5)
-		var match int
-		for _, fi := range metaArr {
-			if fi.Erasure.ParityBlocks == parity {
-				match++
+		verifyParity := func(idx, parity int) {
+			if test.noQuorum {
+				if parity != -1 {
+					t.Fatalf("Test %d: Expected no quorum but found common parity %d", idx, parity)
+				}
+				return // success
+			}
+
+			var match int
+			for _, fi := range metaArr {
+				if fi.Deleted && parity == len(metaArr)/2 {
+					// delete-marker requires only N/2 quorum, since they have no
+					// data
+					match++
+				} else if fi.Erasure.ParityBlocks == parity {
+					match++
+				}
+			}
+
+			if match < len(metaArr)-parity {
+				t.Fatalf("Test %d: Expected %d drives with parity=%d, but got %d", idx, len(metaArr)-parity, parity, match)
 			}
 		}
-		if match < len(metaArr)-parity {
-			t.Fatalf("Test %d: Expected %d drives with parity=%d, but got %d", idx, len(metaArr)-parity, parity, match)
-		}
+		verifyParity(idx, parity)
 	}
 }
