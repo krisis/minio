@@ -82,16 +82,29 @@ FLAGS:
 			Usage: "combine inline data",
 			Name:  "combine",
 		},
+		cli.BoolFlag{
+			Name:  "crc64",
+			Usage: "display crc64 sum of object parts",
+		},
 	}
 
 	app.Action = func(c *cli.Context) error {
 		ndjson := c.Bool("ndjson")
+		crc64 := c.Bool("crc64")
+		if ndjson && crc64 {
+			return errors.New("cannot combine --ndjson and --crc64")
+		}
 		if c.Bool("data") && c.Bool("combine") {
 			return errors.New("cannot combine --data and --combine")
+		}
+		type crc64Info struct {
+			Sum  uint64
+			Path string
 		}
 		// file / version / file
 		filemap := make(map[string]map[string]string)
 		// versionID ->
+		crcmap := make(map[string]map[string]crc64Info)
 		combineFiles := make(map[string][]string)
 		decode := func(r io.Reader, file string) ([]byte, error) {
 			b, err := io.ReadAll(r)
@@ -103,6 +116,7 @@ FLAGS:
 				return nil, err
 			}
 			filemap[file] = make(map[string]string)
+			crcmap[file] = make(map[string]crc64Info)
 			buf := bytes.NewBuffer(nil)
 			var data xlMetaInlineData
 			switch minor {
@@ -166,10 +180,13 @@ FLAGS:
 					}
 					type erasureInfo struct {
 						V2Obj *struct {
-							EcDist  []int
-							EcIndex int
-							EcM     int
-							EcN     int
+							EcDist      []int
+							EcIndex     int
+							EcM         int
+							EcN         int
+							PartNums    []int
+							PartASizes  []uint64
+							PartCRC64Hs [][]uint64
 						}
 					}
 					var ei erasureInfo
@@ -178,6 +195,13 @@ FLAGS:
 						idx := ei.V2Obj.EcIndex
 						filemap[file][verID] = fmt.Sprintf("%s/shard-%02d-of-%02d", verID, idx, ei.V2Obj.EcN+ei.V2Obj.EcM)
 						filemap[file][verID+".json"] = buf.String()
+						for i, partID := range ei.V2Obj.PartNums {
+							path := fmt.Sprintf("%s/part.%d", verID, partID)
+							crcmap[file][path] = crc64Info{
+								Sum:  ei.V2Obj.PartCRC64Hs[i][ei.V2Obj.EcIndex-1],
+								Path: path,
+							}
+						}
 					}
 					return nil
 				})
@@ -244,9 +268,17 @@ FLAGS:
 					return nil, err
 				}
 			}
+			if crc64 {
+				b, err := json.MarshalIndent(crcmap, "", " ")
+				if err != nil {
+					return nil, err
+				}
+				return b, nil
+			}
 			if ndjson {
 				return buf.Bytes(), nil
 			}
+
 			var msi map[string]interface{}
 			dec := json.NewDecoder(buf)
 			// Use number to preserve integers.
