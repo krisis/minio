@@ -19,6 +19,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
@@ -180,6 +181,7 @@ FLAGS:
 					}
 					type erasureInfo struct {
 						V2Obj *struct {
+							DDir        string
 							EcDist      []int
 							EcIndex     int
 							EcM         int
@@ -196,7 +198,9 @@ FLAGS:
 						filemap[file][verID] = fmt.Sprintf("%s/shard-%02d-of-%02d", verID, idx, ei.V2Obj.EcN+ei.V2Obj.EcM)
 						filemap[file][verID+".json"] = buf.String()
 						for i, partID := range ei.V2Obj.PartNums {
-							path := fmt.Sprintf("%s/part.%d", verID, partID)
+							decStr, _ := base64.StdEncoding.DecodeString(ei.V2Obj.DDir)
+							ddir, _ := uuid.FromBytes(decStr)
+							path := fmt.Sprintf("%s/part.%d", ddir, partID)
 							crcmap[file][path] = crc64Info{
 								Sum:  ei.V2Obj.PartCRC64Hs[i][ei.V2Obj.EcIndex-1],
 								Path: path,
